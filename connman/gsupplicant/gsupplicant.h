@@ -243,6 +243,15 @@ dbus_bool_t g_supplicant_network_is_wps_active(GSupplicantNetwork *network);
 dbus_bool_t g_supplicant_network_is_wps_pbc(GSupplicantNetwork *network);
 dbus_bool_t g_supplicant_network_is_wps_advertizing(GSupplicantNetwork *network);
 
+#if defined TIZEN_EXT
+/*
+ * Description: Network client requires additional wifi specific info
+ */
+const unsigned char *g_supplicant_network_get_bssid(GSupplicantNetwork *network);
+unsigned int g_supplicant_network_get_maxrate(GSupplicantNetwork *network);
+const char *g_supplicant_network_get_enc_mode(GSupplicantNetwork *network);
+#endif
+
 struct _GSupplicantCallbacks {
 	void (*system_ready) (void);
 	void (*system_killed) (void);
