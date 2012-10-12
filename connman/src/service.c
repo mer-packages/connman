@@ -6065,12 +6065,24 @@ static int service_connect(struct connman_service *service)
 			if (service->eap == NULL)
 				return -EINVAL;
 
+#if defined TIZEN_EXT
+			/*
+			 * never request credentials if using EAP-TLS, EAP-SIM
+			 * or EAP-AKA (EAP-TLS, EAP-SIM and EAP-AKA networks
+			 * need to be fully provisioned)
+			 */
+			if (g_str_equal(service->eap, "tls") == TRUE ||
+				g_str_equal(service->eap, "sim") == TRUE ||
+				g_str_equal(service->eap, "aka") == TRUE)
+				break;
+#else
 			/*
 			 * never request credentials if using EAP-TLS
 			 * (EAP-TLS networks need to be fully provisioned)
 			 */
 			if (g_str_equal(service->eap, "tls") == TRUE)
 				break;
+#endif
 
 			/*
 			 * Return -ENOKEY if either identity or passphrase is
