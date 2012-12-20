@@ -224,7 +224,7 @@ script_LTLIBRARIES =
 include Makefile.plugins
 
 if CLIENT
-noinst_PROGRAMS += client/connmanctl
+sbin_PROGRAMS += client/connmanctl
 
 noinst_MANUAL_PAGES = doc/connmanctl.1
 
