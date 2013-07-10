@@ -1938,6 +1938,17 @@ static void network_changed(GSupplicantNetwork *network, const char *property)
 
 }
 
+static void add_station(const char *mac)
+{
+	connman_technology_tethering_add_station(CONNMAN_SERVICE_TYPE_WIFI,
+						 mac);
+}
+
+static void remove_station(const char *mac)
+{
+	connman_technology_tethering_remove_station(mac);
+}
+
 static void debug(const char *str)
 {
 	if (getenv("CONNMAN_SUPPLICANT_DEBUG"))
@@ -1955,6 +1966,8 @@ static const GSupplicantCallbacks callbacks = {
 	.network_added		= network_added,
 	.network_removed	= network_removed,
 	.network_changed	= network_changed,
+	.add_station		= add_station,
+	.remove_station		= remove_station,
 	.debug			= debug,
 };
 
