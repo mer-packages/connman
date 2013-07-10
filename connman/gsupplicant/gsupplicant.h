@@ -264,6 +264,8 @@ struct _GSupplicantCallbacks {
 	void (*network_removed) (GSupplicantNetwork *network);
 	void (*network_changed) (GSupplicantNetwork *network,
 					const char *property);
+	void (*add_station) (const char *mac);
+	void (*remove_station) (const char *mac);
 	void (*debug) (const char *str);
 };
 

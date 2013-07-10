@@ -2314,6 +2314,56 @@ static void signal_wps_event(const char *path, DBusMessageIter *iter)
 	supplicant_dbus_property_foreach(iter, wps_event_args, interface);
 }
 
+static void signal_station_connected(const char *path, DBusMessageIter *iter)
+{
+	GSupplicantInterface *interface;
+	const char *sta_mac = NULL;
+
+	SUPPLICANT_DBG("path %s %s", path, SUPPLICANT_PATH);
+
+	if (callbacks_pointer->add_station == NULL)
+		return;
+
+	if (g_strcmp0(path, "/") == 0)
+		return;
+
+	interface = g_hash_table_lookup(interface_table, path);
+	if (interface == NULL)
+		return;
+
+	dbus_message_iter_get_basic(iter, &sta_mac);
+	if (sta_mac == NULL)
+		return;
+
+	SUPPLICANT_DBG("New station %s connected", sta_mac);
+	callbacks_pointer->add_station(sta_mac);
+}
+
+static void signal_station_disconnected(const char *path, DBusMessageIter *iter)
+{
+	GSupplicantInterface *interface;
+	const char *sta_mac = NULL;
+
+	SUPPLICANT_DBG("path %s %s", path, SUPPLICANT_PATH);
+
+	if (callbacks_pointer->remove_station == NULL)
+		return;
+
+	if (g_strcmp0(path, "/") == 0)
+		return;
+
+	interface = g_hash_table_lookup(interface_table, path);
+	if (interface == NULL)
+		return;
+
+	dbus_message_iter_get_basic(iter, &sta_mac);
+	if (sta_mac == NULL)
+		return;
+
+	SUPPLICANT_DBG("Station %s disconnected", sta_mac);
+	callbacks_pointer->remove_station(sta_mac);
+}
+
 static struct {
 	const char *interface;
 	const char *member;
@@ -2337,6 +2387,11 @@ static struct {
 
 	{ SUPPLICANT_INTERFACE ".Interface.WPS", "Credentials", signal_wps_credentials },
 	{ SUPPLICANT_INTERFACE ".Interface.WPS", "Event",       signal_wps_event       },
+
+	{ SUPPLICANT_INTERFACE".Interface", "StaAuthorized",
+		signal_station_connected    },
+	{ SUPPLICANT_INTERFACE".Interface", "StaDeauthorized",
+		signal_station_disconnected  },
 
 	{ }
 };
