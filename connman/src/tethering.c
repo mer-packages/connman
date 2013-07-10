@@ -90,6 +90,47 @@ struct connman_station_info {
 	char hostname[CONNMAN_STATION_STR_INFO_LEN];
 };
 
+static void emit_station_signal(char *action_str,
+				const struct connman_station_info *station_info)
+{
+	DBusMessage *message;
+	DBusMessageIter iter;
+	char *ip, *mac, *hostname;
+
+	if (station_info->path == NULL || station_info->type == NULL
+	    || station_info->ip == NULL || station_info->mac == NULL
+		|| station_info->hostname == NULL)
+		return;
+
+	ip = g_strdup(station_info->ip);
+	mac = g_strdup(station_info->mac);
+	hostname = g_strdup(station_info->hostname);
+
+	message = dbus_message_new_signal(station_info->path,
+					  CONNMAN_TECHNOLOGY_INTERFACE,
+					  action_str);
+	if (message == NULL) {
+		g_free(ip);
+		g_free(mac);
+		g_free(hostname);
+		return;
+	}
+
+	dbus_message_iter_init_append(message, &iter);
+
+	if (dbus_message_iter_append_basic
+	    (&iter, DBUS_TYPE_STRING, &station_info->type)
+	    && dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &ip)
+	    && dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &mac)
+	    && dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING,
+					      &hostname))
+		dbus_connection_send(connection, message, NULL);
+
+	dbus_message_unref(message);
+	g_free(ip);
+	g_free(mac);
+	g_free(hostname);
+}
 static void destroy_station(gpointer key, gpointer value, gpointer user_data)
 {
 	struct connman_station_info *station_info;
@@ -98,9 +139,57 @@ static void destroy_station(gpointer key, gpointer value, gpointer user_data)
 
 	station_info = value;
 
+	if (station_info->is_connected) {
+		station_info->is_connected = FALSE;
+		emit_station_signal("DhcpLeaseDeleted", station_info);
+	}
+
 	g_free(station_info->path);
 	g_free(station_info->type);
 	g_free(station_info);
+}
+
+static void save_dhcp_ack_lease_info(char *hostname,
+				     unsigned char *mac, unsigned int nip)
+{
+	char *lower_mac;
+	const char *ip;
+	char sta_mac[CONNMAN_STATION_MAC_INFO_LEN];
+	struct connman_station_info *info_found;
+	struct in_addr addr;
+	int str_len;
+
+	__sync_synchronize();
+
+	snprintf(sta_mac, CONNMAN_STATION_MAC_INFO_LEN,
+		 "%02x:%02x:%02x:%02x:%02x:%02x",
+		 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+	lower_mac = g_ascii_strdown(mac, -1);
+
+	info_found = g_hash_table_lookup(sta_hash, lower_mac);
+	if (info_found == NULL) {
+		g_free(lower_mac);
+		return;
+	}
+
+	/* get the ip */
+	addr.s_addr = nip;
+	ip = inet_ntoa(addr);
+	str_len = strlen(ip) + 1;
+	if (str_len > CONNMAN_STATION_STR_INFO_LEN)
+		str_len = CONNMAN_STATION_STR_INFO_LEN - 1;
+	memcpy(info_found->ip, ip, str_len);
+
+	/* get hostname */
+	str_len = strlen(hostname) + 1;
+	if (str_len > CONNMAN_STATION_STR_INFO_LEN)
+		str_len = CONNMAN_STATION_STR_INFO_LEN - 1;
+	memcpy(info_found->hostname, hostname, str_len);
+
+	/* emit a signal */
+	info_found->is_connected = TRUE;
+	emit_station_signal("DhcpConnected", info_found);
+	g_free(lower_mac);
 }
 
 int connman_technology_tethering_add_station(enum connman_service_type type,
@@ -147,9 +236,15 @@ int connman_technology_tethering_remove_station(const char *mac)
 	lower_mac = g_ascii_strdown(mac, -1);
 
 	info_found = g_hash_table_lookup(sta_hash, lower_mac);
-	if (info_found == NULL)
+	if (info_found == NULL) {
+		g_free(lower_mac);
 		return -EACCES;
+	}
 
+	if (info_found->is_connected) {
+		info_found->is_connected = FALSE;
+		emit_station_signal("DhcpLeaseDeleted", info_found);
+	}
 	g_free(lower_mac);
 	g_hash_table_remove(sta_hash, info_found->mac);
 	g_free(info_found->path);
@@ -243,6 +338,9 @@ static GDHCPServer *dhcp_server_start(const char *bridge,
 	g_dhcp_server_set_option(dhcp_server, G_DHCP_ROUTER, router);
 	g_dhcp_server_set_option(dhcp_server, G_DHCP_DNS_SERVER, dns);
 	g_dhcp_server_set_ip_range(dhcp_server, start_ip, end_ip);
+
+	g_dhcp_server_set_save_ack_lease(dhcp_server,
+					 save_dhcp_ack_lease_info, NULL);
 
 	g_dhcp_server_start(dhcp_server);
 
