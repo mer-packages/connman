@@ -29,6 +29,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <linux/sockios.h>
@@ -52,6 +53,9 @@
 
 #define DEFAULT_MTU	1500
 
+#define CONNMAN_STATION_STR_INFO_LEN		64
+#define CONNMAN_STATION_MAC_INFO_LEN		32
+
 static char *private_network_primary_dns = NULL;
 static char *private_network_secondary_dns = NULL;
 
@@ -60,6 +64,7 @@ static GDHCPServer *tethering_dhcp_server = NULL;
 static struct connman_ippool *dhcp_ippool = NULL;
 static DBusConnection *connection;
 static GHashTable *pn_hash;
+static GHashTable *sta_hash;
 
 struct connman_private_network {
 	char *owner;
@@ -75,6 +80,84 @@ struct connman_private_network {
 	char *primary_dns;
 	char *secondary_dns;
 };
+
+struct connman_station_info {
+	bool is_connected;
+	char *path;
+	char *type;
+	char ip[CONNMAN_STATION_STR_INFO_LEN];
+	char mac[CONNMAN_STATION_MAC_INFO_LEN];
+	char hostname[CONNMAN_STATION_STR_INFO_LEN];
+};
+
+static void destroy_station(gpointer key, gpointer value, gpointer user_data)
+{
+	struct connman_station_info *station_info;
+
+	__sync_synchronize();
+
+	station_info = value;
+
+	g_free(station_info->path);
+	g_free(station_info->type);
+	g_free(station_info);
+}
+
+int connman_technology_tethering_add_station(enum connman_service_type type,
+							const char *mac)
+{
+	const char *str_type;
+	char *lower_mac;
+	char *path;
+	struct connman_station_info *station_info;
+
+	__sync_synchronize();
+
+	DBG("type %d", type);
+
+	str_type = __connman_service_type2string(type);
+	if (str_type == NULL)
+		return 0;
+
+	path = g_strdup_printf("%s/technology/%s", CONNMAN_PATH, str_type);
+
+	station_info = g_try_new0(struct connman_station_info, 1);
+	if (station_info == NULL)
+		return -ENOMEM;
+
+	lower_mac = g_ascii_strdown(mac, -1);
+
+	memcpy(station_info->mac, lower_mac, strlen(lower_mac) + 1);
+	station_info->path = path;
+	station_info->type = g_strdup(str_type);
+
+	g_hash_table_insert(sta_hash, station_info->mac, station_info);
+
+	g_free(lower_mac);
+	return 0;
+}
+
+int connman_technology_tethering_remove_station(const char *mac)
+{
+	char *lower_mac;
+	struct connman_station_info *info_found;
+
+	__sync_synchronize();
+
+	lower_mac = g_ascii_strdown(mac, -1);
+
+	info_found = g_hash_table_lookup(sta_hash, lower_mac);
+	if (info_found == NULL)
+		return -EACCES;
+
+	g_free(lower_mac);
+	g_hash_table_remove(sta_hash, info_found->mac);
+	g_free(info_found->path);
+	g_free(info_found->type);
+	g_free(info_found);
+
+	return 0;
+}
 
 const char *__connman_tethering_get_bridge(void)
 {
@@ -517,6 +600,9 @@ int __connman_tethering_init(void)
 	pn_hash = g_hash_table_new_full(g_str_hash, g_str_equal,
 						NULL, remove_private_network);
 
+	sta_hash = g_hash_table_new_full(g_str_hash,
+					 g_str_equal, NULL, NULL);
+
 	return 0;
 }
 
@@ -537,5 +623,7 @@ void __connman_tethering_cleanup(void)
 		return;
 
 	g_hash_table_destroy(pn_hash);
+	g_hash_table_foreach(sta_hash, destroy_station, NULL);
+	g_hash_table_destroy(sta_hash);
 	dbus_connection_unref(connection);
 }
