@@ -170,6 +170,7 @@ static const uint8_t dhcp_option_lengths[] = {
 	[OPTION_U32]	= 4,
 };
 
+char *malloc_option_value_string(uint8_t *option, GDHCPOptionType type);
 uint8_t *dhcp_get_option(struct dhcp_packet *packet, int code);
 uint8_t *dhcpv6_get_option(struct dhcpv6_packet *packet, uint16_t pkt_len,
 			int code, uint16_t *option_len, int *option_count);

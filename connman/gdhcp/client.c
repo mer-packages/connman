@@ -1787,7 +1787,7 @@ static int sprint_nip(char *dest, const char *pre, const uint8_t *ip)
 }
 
 /* Create "opt_value1 option_value2 ..." string */
-static char *malloc_option_value_string(uint8_t *option, GDHCPOptionType type)
+char *malloc_option_value_string(uint8_t *option, GDHCPOptionType type)
 {
 	unsigned upper_length;
 	int len, optlen;

@@ -205,6 +205,9 @@ struct _GDHCPServer;
 
 typedef struct _GDHCPServer GDHCPServer;
 
+typedef void (*GDHCPSaveACKLeaseFunc) (char *hostname,
+			unsigned char *mac, unsigned int nip);
+
 GDHCPServer *g_dhcp_server_new(GDHCPType type,
 		int ifindex, GDHCPServerError *error);
 int g_dhcp_server_start(GDHCPServer *server);
@@ -223,6 +226,8 @@ void g_dhcp_server_set_lease_time(GDHCPServer *dhcp_server,
 						unsigned int lease_time);
 void g_dhcp_server_set_save_lease(GDHCPServer *dhcp_server,
 				GDHCPSaveLeaseFunc func, gpointer user_data);
+void g_dhcp_server_set_save_ack_lease(GDHCPServer *dhcp_server,
+				GDHCPSaveACKLeaseFunc func, gpointer user_data);
 #ifdef __cplusplus
 }
 #endif
