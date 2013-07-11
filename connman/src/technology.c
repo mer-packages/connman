@@ -25,6 +25,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include <gdbus.h>
 
@@ -66,6 +67,7 @@ struct connman_technology {
 					      */
 	char *tethering_ident;
 	char *tethering_passphrase;
+	bool tethering_hidden;
 
 	connman_bool_t enable_persistent; /* Save the tech state */
 
@@ -316,9 +318,11 @@ static int set_tethering(struct connman_technology *technology,
 	int err;
 	const char *ident, *passphrase, *bridge;
 	GSList *tech_drivers;
+	bool hidden;
 
 	ident = technology->tethering_ident;
 	passphrase = technology->tethering_passphrase;
+	hidden = technology->tethering_hidden;
 
 	__sync_synchronize();
 	if (technology->enabled == FALSE)
@@ -339,7 +343,7 @@ static int set_tethering(struct connman_technology *technology,
 			continue;
 
 		err = driver->set_tethering(technology, ident, passphrase,
-				bridge, enabled);
+				bridge, enabled, hidden);
 
 		if (result == -EINPROGRESS)
 			continue;
@@ -603,6 +607,10 @@ static void append_properties(DBusMessageIter *iter,
 		connman_dbus_dict_append_basic(&dict, "TetheringPassphrase",
 					DBUS_TYPE_STRING,
 					&technology->tethering_passphrase);
+
+	connman_dbus_dict_append_basic(&dict, "Hidden",
+					DBUS_TYPE_BOOLEAN,
+					&technology->tethering_hidden);
 
 	connman_dbus_dict_close(iter, &dict);
 }
@@ -910,6 +918,18 @@ static DBusMessage *set_property(DBusConnection *conn,
 						&technology->tethering_passphrase);
 			}
 		}
+	} else if (g_str_equal(name, "Hidden") == TRUE) {
+		bool hidden;
+
+		if (type != DBUS_TYPE_BOOLEAN)
+			return __connman_error_invalid_arguments(msg);
+
+		dbus_message_iter_get_basic(&value, &hidden);
+
+		if (technology->type != CONNMAN_SERVICE_TYPE_WIFI)
+			return __connman_error_not_supported(msg);
+
+		technology->tethering_hidden = hidden;
 	} else if (g_str_equal(name, "Powered") == TRUE) {
 		connman_bool_t enable;
 
@@ -1128,6 +1148,7 @@ static struct connman_technology *technology_get(enum connman_service_type type)
 	technology->rfkill_driven = FALSE;
 	technology->softblocked = FALSE;
 	technology->hardblocked = FALSE;
+	technology->tethering_hidden = false;
 
 	technology->type = type;
 	technology->path = g_strdup_printf("%s/technology/%s",

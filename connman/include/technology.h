@@ -22,6 +22,7 @@
 #ifndef __CONNMAN_TECHNOLOGY_H
 #define __CONNMAN_TECHNOLOGY_H
 
+#include <stdbool.h>
 #include <connman/service.h>
 
 #ifdef __cplusplus
@@ -63,7 +64,8 @@ struct connman_technology_driver {
 								int index);
 	int (*set_tethering) (struct connman_technology *technology,
 				const char *identifier, const char *passphrase,
-				const char *bridge, connman_bool_t enabled);
+				const char *bridge, connman_bool_t enabled,
+				bool hidden);
 	int (*set_regdom) (struct connman_technology *technology,
 						const char *alpha2);
 };

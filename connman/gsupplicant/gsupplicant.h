@@ -113,6 +113,12 @@ typedef enum {
 	G_SUPPLICANT_WPS_STATE_FAIL,
 } GSupplicantWpsState;
 
+enum GSupplicantAPHiddenSSID {
+	G_SUPPLICANT_AP_NO_SSID_HIDING,
+	G_SUPPLICANT_AP_HIDDEN_SSID_ZERO_LEN,
+	G_SUPPLICANT_AP_HIDDEN_SSID_ZERO_CONTENTS,
+} ;
+
 struct _GSupplicantSSID {
 	const void *ssid;
 	unsigned int ssid_len;
@@ -134,6 +140,7 @@ struct _GSupplicantSSID {
 	dbus_bool_t use_wps;
 	const char *pin_wps;
 	const char *bgscan;
+	int ignore_broadcast_ssid;
 };
 
 typedef struct _GSupplicantSSID GSupplicantSSID;

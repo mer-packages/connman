@@ -1943,7 +1943,8 @@ struct wifi_tethering_info {
 	GSupplicantSSID *ssid;
 };
 
-static GSupplicantSSID *ssid_ap_init(const char *ssid, const char *passphrase)
+static GSupplicantSSID *ssid_ap_init(const char *ssid,
+		const char *passphrase, bool hidden)
 {
 	GSupplicantSSID *ap;
 
@@ -1967,6 +1968,12 @@ static GSupplicantSSID *ssid_ap_init(const char *ssid, const char *passphrase)
 	       ap->group_cipher = G_SUPPLICANT_GROUP_CCMP;
 	       ap->passphrase = passphrase;
 	}
+
+	if (hidden)
+		ap->ignore_broadcast_ssid =
+				G_SUPPLICANT_AP_HIDDEN_SSID_ZERO_CONTENTS;
+	else
+		ap->ignore_broadcast_ssid = G_SUPPLICANT_AP_NO_SSID_HIDING;
 
 	return ap;
 }
@@ -2046,7 +2053,8 @@ static void sta_remove_callback(int result,
 
 static int tech_set_tethering(struct connman_technology *technology,
 				const char *identifier, const char *passphrase,
-				const char *bridge, connman_bool_t enabled)
+				const char *bridge, connman_bool_t enabled,
+				bool hidden)
 {
 	GList *list;
 	GSupplicantInterface *interface;
@@ -2099,7 +2107,7 @@ static int tech_set_tethering(struct connman_technology *technology,
 		info->wifi = wifi;
 		info->technology = technology;
 		info->wifi->bridge = bridge;
-		info->ssid = ssid_ap_init(identifier, passphrase);
+		info->ssid = ssid_ap_init(identifier, passphrase, hidden);
 		if (info->ssid == NULL) {
 			g_free(info);
 			continue;
