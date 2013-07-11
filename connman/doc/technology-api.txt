@@ -93,3 +93,8 @@ Properties	boolean Powered [readwrite]
 			This property is only valid for the WiFi technology,
 			and is then mapped to the WPA pre-shared key clients
 			will have to use in order to establish a connection.
+
+		boolean Hidden [readwrite]
+
+			This option allows to enable or disable the support
+			for the hidden Wi-Fi tethering.

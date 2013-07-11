@@ -3677,6 +3677,9 @@ static void interface_add_network_params(DBusMessageIter *iter, void *user_data)
 	supplicant_dbus_dict_append_fixed_array(&dict, "ssid",
 					DBUS_TYPE_BYTE, &ssid->ssid,
 						ssid->ssid_len);
+	supplicant_dbus_dict_append_basic(&dict, "ignore_broadcast_ssid",
+					DBUS_TYPE_INT32,
+					&ssid->ignore_broadcast_ssid);
 
 	supplicant_dbus_dict_close(iter, &dict);
 }

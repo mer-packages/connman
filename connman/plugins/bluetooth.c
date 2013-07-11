@@ -839,7 +839,8 @@ static void bluetooth_tech_remove(struct connman_technology *technology)
 
 static int bluetooth_tech_set_tethering(struct connman_technology *technology,
 		const char *identifier, const char *passphrase,
-		const char *bridge, bool enabled)
+		const char *bridge, bool enabled,
+        bool hidden)
 {
 	GHashTableIter hash_iter;
 	gpointer key, value;

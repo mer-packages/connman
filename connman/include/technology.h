@@ -63,7 +63,8 @@ struct connman_technology_driver {
 								int index);
 	int (*set_tethering) (struct connman_technology *technology,
 				const char *identifier, const char *passphrase,
-				const char *bridge, bool enabled);
+				const char *bridge, bool enabled,
+                bool hidden);
 	int (*set_regdom) (struct connman_technology *technology,
 						const char *alpha2);
 };

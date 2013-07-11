@@ -1232,7 +1232,7 @@ static void disable_nap(gpointer key, gpointer value, gpointer user_data)
 
 static int tech_set_tethering(struct connman_technology *technology,
 				const char *identifier, const char *passphrase,
-				const char *bridge, bool enabled)
+				const char *bridge, bool enabled,bool hidden)
 {
 	struct tethering_info info = {
 		.technology	= technology,
