@@ -334,7 +334,7 @@ static int set_tethering(struct connman_technology *technology,
 		return -EOPNOTSUPP;
 
 	if (technology->type == CONNMAN_SERVICE_TYPE_WIFI &&
-	    (!ident || !passphrase))
+	    (!ident))
 		return -EINVAL;
 
 	for (tech_drivers = technology->driver_list; tech_drivers;
@@ -901,19 +901,23 @@ static DBusMessage *set_property(DBusConnection *conn,
 		if (technology->type != CONNMAN_SERVICE_TYPE_WIFI)
 			return __connman_error_not_supported(msg);
 
-		if (strlen(str) < 8 || strlen(str) > 63)
-			return __connman_error_passphrase_required(msg);
+		if (strlen(str) < 8 || strlen(str) > 63) {
+			if (g_str_equal(str, ""))
+				technology->tethering_passphrase = NULL;
+			else
+				return __connman_error_passphrase_required(msg);
+		} else {
+			if (g_strcmp0(technology->tethering_passphrase, str) != 0) {
+				g_free(technology->tethering_passphrase);
+				technology->tethering_passphrase = g_strdup(str);
+				technology_save(technology);
 
-		if (g_strcmp0(technology->tethering_passphrase, str) != 0) {
-			g_free(technology->tethering_passphrase);
-			technology->tethering_passphrase = g_strdup(str);
-			technology_save(technology);
-
-			connman_dbus_property_changed_basic(technology->path,
-					CONNMAN_TECHNOLOGY_INTERFACE,
-					"TetheringPassphrase",
-					DBUS_TYPE_STRING,
-					&technology->tethering_passphrase);
+				connman_dbus_property_changed_basic(technology->path,
+						CONNMAN_TECHNOLOGY_INTERFACE,
+						"TetheringPassphrase",
+						DBUS_TYPE_STRING,
+						&technology->tethering_passphrase);
+			}
 		}
 	} else if (g_str_equal(name, "Powered")) {
 		dbus_bool_t enable;
