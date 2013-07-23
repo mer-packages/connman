@@ -91,42 +91,27 @@ struct connman_station_info {
 };
 
 static void emit_station_signal(char *action_str,
-				const struct connman_station_info *station_info)
+			const struct connman_station_info *station_info)
 {
-	DBusMessage *message;
-	DBusMessageIter iter;
 	char *ip, *mac, *hostname;
 
 	if (station_info->path == NULL || station_info->type == NULL
-	    || station_info->ip == NULL || station_info->mac == NULL
-		|| station_info->hostname == NULL)
+		|| station_info->ip == NULL || station_info->mac == NULL
+			|| station_info->hostname == NULL)
 		return;
 
 	ip = g_strdup(station_info->ip);
 	mac = g_strdup(station_info->mac);
 	hostname = g_strdup(station_info->hostname);
 
-	message = dbus_message_new_signal(station_info->path,
-					  CONNMAN_TECHNOLOGY_INTERFACE,
-					  action_str);
-	if (message == NULL) {
-		g_free(ip);
-		g_free(mac);
-		g_free(hostname);
-		return;
-	}
+	g_dbus_emit_signal(connection, station_info->path,
+			CONNMAN_TECHNOLOGY_INTERFACE, action_str,
+			DBUS_TYPE_STRING, &station_info->type,
+			DBUS_TYPE_STRING, &ip,
+			DBUS_TYPE_STRING, &mac,
+			DBUS_TYPE_STRING, &hostname,
+			DBUS_TYPE_INVALID);
 
-	dbus_message_iter_init_append(message, &iter);
-
-	if (dbus_message_iter_append_basic
-	    (&iter, DBUS_TYPE_STRING, &station_info->type)
-	    && dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &ip)
-	    && dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &mac)
-	    && dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING,
-					      &hostname))
-		dbus_connection_send(connection, message, NULL);
-
-	dbus_message_unref(message);
 	g_free(ip);
 	g_free(mac);
 	g_free(hostname);
@@ -164,7 +149,7 @@ static void save_dhcp_ack_lease_info(char *hostname,
 	snprintf(sta_mac, CONNMAN_STATION_MAC_INFO_LEN,
 		 "%02x:%02x:%02x:%02x:%02x:%02x",
 		 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-	lower_mac = g_ascii_strdown(mac, -1);
+	lower_mac = g_ascii_strdown(sta_mac, -1);
 
 	info_found = g_hash_table_lookup(sta_hash, lower_mac);
 	if (info_found == NULL) {
