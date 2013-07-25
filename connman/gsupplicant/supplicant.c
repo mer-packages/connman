@@ -1729,7 +1729,9 @@ static void interface_property(const char *key, DBusMessageIter *iter,
 		debug_strvalmap("Mode capability", mode_capa_map,
 						interface->mode_capa);
 
-		callback_interface_added(interface);
+		if (interface->ready)
+			callback_interface_added(interface);
+
 		return;
 	}
 
