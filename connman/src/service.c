@@ -3408,6 +3408,11 @@ static DBusMessage *clear_property(DBusConnection *conn,
 
 		g_get_current_time(&service->modified);
 		service_save(service);
+	} else if (g_str_equal(name, "Passphrase") == TRUE) {
+		__connman_service_set_passphrase(service, NULL);
+
+		g_get_current_time(&service->modified);
+		service_save(service);
 	} else
 		return __connman_error_invalid_property(msg);
 
