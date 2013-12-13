@@ -3266,14 +3266,26 @@ static void add_network_security_eap(DBusMessageIter *dict,
 {
 	char *eap_value;
 
+#if defined TIZEN_EXT
+	if (ssid->eap == NULL)
+#else
 	if (ssid->eap == NULL || ssid->identity == NULL)
+#endif
 		return;
 
 	if (g_strcmp0(ssid->eap, "tls") == 0) {
 		add_network_security_tls(dict, ssid);
 	} else if (g_strcmp0(ssid->eap, "peap") == 0 ||
 				g_strcmp0(ssid->eap, "ttls") == 0) {
+#if defined TIZEN_EXT
+		if (ssid->identity == NULL)
+			return;
+#endif
 		add_network_security_peap(dict, ssid);
+#if defined TIZEN_EXT
+	} else if (g_strcmp0(ssid->eap, "sim") == 0 ||
+			g_strcmp0(ssid->eap, "aka") == 0) {
+#endif
 	} else
 		return;
 
@@ -3282,9 +3294,16 @@ static void add_network_security_eap(DBusMessageIter *dict,
 	supplicant_dbus_dict_append_basic(dict, "eap",
 						DBUS_TYPE_STRING,
 						&eap_value);
+#if defined TIZEN_EXT
+	if (ssid->identity != NULL)
+		supplicant_dbus_dict_append_basic(dict, "identity",
+							DBUS_TYPE_STRING,
+							&ssid->identity);
+#else
 	supplicant_dbus_dict_append_basic(dict, "identity",
 						DBUS_TYPE_STRING,
 						&ssid->identity);
+#endif
 
 	g_free(eap_value);
 }
