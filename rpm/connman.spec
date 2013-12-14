@@ -93,6 +93,7 @@ Documentation for connman.
 
 %build
 # >> build pre
+CFLAGS+=" -DTIZEN_EXT"
 # << build pre
 
 %reconfigure --disable-static \
