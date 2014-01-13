@@ -1,4 +1,4 @@
-/*
+  /*
  *  DHCP library with GLib integration
  *
  *  Copyright (C) 2007-2012  Intel Corporation. All rights reserved.
@@ -143,6 +143,72 @@ int dhcp_end_option(uint8_t *optionptr)
 
 	return i;
 }
+ 
+/* get a rough idea of how long an option will be */
+static const uint8_t len_of_option_as_string[] = {
+	[OPTION_IP] = sizeof("255.255.255.255 "),
+	[OPTION_STRING] = 1,
+[OPTION_U8] = sizeof("255 "),
+	[OPTION_U16] = sizeof("65535 "),
+	[OPTION_U32] = sizeof("4294967295 "),
+};
+
+static int sprint_nip(char *dest, const char *pre, const uint8_t *ip)
+{
+	return sprintf(dest, "%s%u.%u.%u.%u", pre, ip[0], ip[1], ip[2], ip[3]);
+}
+
+/* Create "opt_value1 option_value2 ..." string */
+char *malloc_option_value_string(uint8_t *option, GDHCPOptionType type)
+{
+	unsigned upper_length;
+	int len, optlen;
+	char *dest, *ret;
+
+	len = option[OPT_LEN - OPT_DATA];
+	type &= OPTION_TYPE_MASK;
+	optlen = dhcp_option_lengths[type];
+	if (optlen == 0)
+		return NULL;
+	upper_length = len_of_option_as_string[type] *
+			((unsigned)len / (unsigned)optlen);
+	dest = ret = g_malloc(upper_length + 1);
+	if (ret == NULL)
+		return NULL;
+
+		while (len >= optlen) {
+		switch (type) {
+		case OPTION_IP:
+			dest += sprint_nip(dest, "", option);
+			break;
+		case OPTION_U16: {
+			uint16_t val_u16 = get_be16(option);
+			dest += sprintf(dest, "%u", val_u16);
+			break;
+		}
+		case OPTION_U32: {
+			uint32_t val_u32 = get_be32(option);
+			dest += sprintf(dest, "%u", val_u32);
+			break;
+		}
+		case OPTION_STRING:
+			memcpy(dest, option, len);
+			dest[len] = '\0';
+			return ret;
+		default:
+			break;
+		}
+		option += optlen;
+		len -= optlen;
+		if (len <= 0)
+			break;
+		*dest++ = ' ';
+		*dest = '\0';
+	}
+
+	return ret;
+}
+
 
 uint8_t *dhcpv6_get_option(struct dhcpv6_packet *packet, uint16_t pkt_len,
 			int code, uint16_t *option_len, int *option_count)

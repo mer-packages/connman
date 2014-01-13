@@ -323,7 +323,6 @@ static GDHCPServer *dhcp_server_start(const char *bridge,
 	g_dhcp_server_set_option(dhcp_server, G_DHCP_ROUTER, router);
 	g_dhcp_server_set_option(dhcp_server, G_DHCP_DNS_SERVER, dns);
 	g_dhcp_server_set_ip_range(dhcp_server, start_ip, end_ip);
-
 	g_dhcp_server_set_save_ack_lease(dhcp_server,
 					 save_dhcp_ack_lease_info, NULL);
 
