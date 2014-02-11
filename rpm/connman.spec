@@ -94,7 +94,6 @@ Documentation for connman.
 %build
 # >> build pre
 CFLAGS+=" -DTIZEN_EXT"
-cd connman
 # << build pre
 
 %reconfigure --disable-static \
@@ -119,7 +118,6 @@ make %{?jobs:-j%jobs}
 %install
 rm -rf %{buildroot}
 # >> install pre
-cd connman
 # << install pre
 %make_install
 mkdir -p %{buildroot}%{_sysconfdir}/tracing/connman/
@@ -155,7 +153,7 @@ systemctl daemon-reload
 
 %files
 %defattr(-,root,root,-)
-#%doc AUTHORS COPYING ChangeLog README
+%doc AUTHORS COPYING ChangeLog README
 %{_sbindir}/*
 %{_libdir}/%{name}/scripts/*
 %config %{_sysconfdir}/dbus-1/system.d/*.conf
@@ -168,7 +166,7 @@ systemctl daemon-reload
 
 %files devel
 %defattr(-,root,root,-)
-#%doc AUTHORS COPYING
+%doc AUTHORS COPYING
 %{_includedir}/%{name}/*.h
 %{_libdir}/pkgconfig/*.pc
 # >> files devel
