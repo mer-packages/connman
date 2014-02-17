@@ -35,6 +35,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <errno.h>
 
 #include <glib.h>
@@ -99,23 +100,23 @@ struct stats_iter {
 
 static gint option_create = 0;
 static gint option_interval = 3;
-static gboolean option_dump = FALSE;
-static gboolean option_summary = FALSE;
+static bool option_dump = false;
+static bool option_summary = false;
 static char *option_info_file_name = NULL;
 static time_t option_start_ts = -1;
 static char *option_last_file_name = NULL;
 
-static gboolean parse_start_ts(const char *key, const char *value,
+static bool parse_start_ts(const char *key, const char *value,
 					gpointer user_data, GError **error)
 {
 	GTimeVal time_val;
 
-	if (g_time_val_from_iso8601(value, &time_val) == FALSE)
-		return FALSE;
+	if (!g_time_val_from_iso8601(value, &time_val))
+		return false;
 
 	option_start_ts = time_val.tv_sec;
 
-	return TRUE;
+	return true;
 }
 
 static GOptionEntry options[] = {
@@ -244,13 +245,13 @@ static void stats_hdr_info(struct stats_file *file)
 	end = get_end(file);
 
 	home = get_home(file);
-	if (home == NULL)
+	if (!home)
 		home_idx = UINT_MAX;
 	else
 		home_idx = get_index(file, home);
 
 	roaming = get_roaming(file);
-	if (roaming == NULL)
+	if (!roaming)
 		roaming_idx = UINT_MAX;
 	else
 		roaming_idx = get_index(file, roaming);
@@ -344,12 +345,12 @@ static void stats_print_diff(struct stats_file *file)
 	printf("\t[%04d] ", get_index(file, end));
 	stats_print_record(end);
 
-	if (file->home_first != NULL && get_home(file) != NULL) {
+	if (file->home_first && get_home(file)) {
 		printf("\nhome\n");
 		stats_print_rec_diff(file->home_first, get_home(file));
 	}
 
-	if (file->roaming_first != NULL && get_roaming(file) != NULL) {
+	if (file->roaming_first && get_roaming(file)) {
 		printf("\roaming\n");
 		stats_print_rec_diff(file->roaming_first, get_roaming(file));
 	}
@@ -409,13 +410,13 @@ static int stats_file_update_cache(struct stats_file *file)
 			it != end;
 			it = get_next(file, it)) {
 
-		if (file->home_first == NULL && it->roaming == 0)
+		if (!file->home_first && it->roaming == 0)
 			file->home_first = it;
 
-		if (file->roaming_first == NULL && it->roaming == 1)
+		if (!file->roaming_first && it->roaming == 1)
 			file->roaming_first = it;
 
-		if (file->home_first != NULL && file->roaming_first != NULL)
+		if (file->home_first && file->roaming_first)
 			break;
 	}
 
@@ -438,7 +439,7 @@ static int stats_file_remap(struct stats_file *file, size_t size)
 		return -errno;
 	}
 
-	if (file->addr == NULL) {
+	if (!file->addr) {
 		addr = mmap(NULL, new_size, PROT_READ | PROT_WRITE,
 				MAP_SHARED, file->fd, 0);
 	} else {
@@ -467,7 +468,7 @@ static int stats_open(struct stats_file *file, const char *name)
 
 	bzero(file, sizeof(struct stats_file));
 
-	if (name != NULL) {
+	if (name) {
 		file->name = g_strdup(name);
 
 		file->fd = TFR(open(file->name,
@@ -554,7 +555,7 @@ static int stats_create(struct stats_file *file, unsigned int nr,
 
 	stats_file_update_cache(file);
 
-	if (start != NULL) {
+	if (start) {
 		struct stats_record *rec;
 
 		rec = get_end(file);
@@ -604,7 +605,7 @@ static int stats_create(struct stats_file *file, unsigned int nr,
 		set_end(file, next);
 
 		if ((rand() % 50) == 0)
-			roaming = roaming == TRUE? FALSE : TRUE;
+			roaming = roaming ? FALSE : TRUE;
 
 	}
 
@@ -662,18 +663,18 @@ static struct stats_record *process_file(struct stats_iter *iter,
 	home = NULL;
 	roaming = NULL;
 
-	if (cur == NULL)
+	if (!cur)
 		cur = get_next_record(iter);
 	next = get_next_record(iter);
 
-	while (next != NULL) {
+	while (next) {
 		GDate date_cur;
 		GDate date_next;
 		int append;
 
 		append = FALSE;
 
-		if (cur->roaming == TRUE)
+		if (cur->roaming)
 			roaming = cur;
 		else
 			home = cur;
@@ -694,7 +695,8 @@ static struct stats_record *process_file(struct stats_iter *iter,
 
 			if (day_cur == day_next && month_cur != month_next)
 				append = TRUE;
-			else if (day_cur < account_period_offset && day_next >= account_period_offset)
+			else if (day_cur < account_period_offset
+					&& day_next >= account_period_offset)
 				append = TRUE;
 		} else {
 			/* day period size */
@@ -702,13 +704,13 @@ static struct stats_record *process_file(struct stats_iter *iter,
 				append = TRUE;
 		}
 
-		if (append == TRUE) {
-			if (home != NULL) {
+		if (append) {
+			if (home) {
 				append_record(temp_file, home);
 				home = NULL;
 			}
 
-			if (roaming != NULL) {
+			if (roaming) {
 				append_record(temp_file, roaming);
 				roaming = NULL;
 			}
@@ -750,14 +752,15 @@ static int summarize(struct stats_file *data_file,
 	/* Now process history file */
 	cur = NULL;
 
-	if (history_file != NULL) {
+	if (history_file) {
 		history_iter.file = history_file;
 		history_iter.begin = get_iterator_begin(history_iter.file);
 		history_iter.end = get_iterator_end(history_iter.file);
 		history_iter.it = history_iter.begin;
 
 		cur = process_file(&history_iter, temp_file, NULL,
-					&date_change_step_size, account_period_offset);
+					&date_change_step_size,
+					account_period_offset);
 	}
 
 	data_iter.file = data_file;
@@ -769,9 +772,9 @@ static int summarize(struct stats_file *data_file,
 	 * Ensure date_file records are newer than the history_file
 	 * record
 	 */
-	if (cur != NULL) {
+	if (cur) {
 		next = get_next_record(&data_iter);
-		while(next != NULL && cur->ts > next->ts)
+		while (next && cur->ts > next->ts)
 			next = get_next_record(&data_iter);
 	}
 
@@ -779,7 +782,7 @@ static int summarize(struct stats_file *data_file,
 	cur = process_file(&data_iter, temp_file, cur,
 				&date_change_step_size, account_period_offset);
 
-	if (cur != NULL)
+	if (cur)
 		append_record(temp_file, cur);
 
 	return 0;
@@ -814,7 +817,7 @@ static void history_file_update(struct stats_file *data_file,
 		history_file = &_history_file;
 
 	if (stats_open(&tempory_file, NULL) < 0) {
-		if (history_file != NULL)
+		if (history_file)
 			stats_close(history_file);
 		return;
 	}
@@ -844,8 +847,8 @@ int main(int argc, char *argv[])
 	context = g_option_context_new(NULL);
 	g_option_context_add_main_entries(context, options, NULL);
 
-	if (g_option_context_parse(context, &argc, &argv, &error) == FALSE) {
-		if (error != NULL) {
+	if (!g_option_context_parse(context, &argc, &argv, &error)) {
+		if (error) {
 			g_printerr("%s\n", error->message);
 			g_error_free(error);
 		} else
@@ -866,7 +869,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (option_last_file_name != NULL) {
+	if (option_last_file_name) {
 		struct stats_file last;
 		if (stats_open(&last, option_last_file_name) < 0) {
 			fprintf(stderr, "failed open file %s\n",
@@ -883,7 +886,8 @@ int main(int argc, char *argv[])
 		start_ts = option_start_ts;
 
 	if (option_create > 0)
-		stats_create(data_file, option_create, option_interval, start_ts, rec);
+		stats_create(data_file, option_create, option_interval,
+				start_ts, rec);
 
 	hdr = get_hdr(data_file);
 	if (hdr->magic != MAGIC) {
@@ -895,13 +899,13 @@ int main(int argc, char *argv[])
 
 	stats_hdr_info(data_file);
 
-	if (option_dump == TRUE)
+	if (option_dump)
 		stats_print_entries(data_file);
 
-	if (option_summary == TRUE)
+	if (option_summary)
 		stats_print_diff(data_file);
 
-	if (option_info_file_name != NULL)
+	if (option_info_file_name)
 		history_file_update(data_file, option_info_file_name);
 
 err:

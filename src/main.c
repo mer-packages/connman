@@ -39,8 +39,8 @@
 
 #include "connman.h"
 
-#define DEFAULT_INPUT_REQUEST_TIMEOUT 120 * 1000
-#define DEFAULT_BROWSER_LAUNCH_TIMEOUT 300 * 1000
+#define DEFAULT_INPUT_REQUEST_TIMEOUT (120 * 1000)
+#define DEFAULT_BROWSER_LAUNCH_TIMEOUT (300 * 1000)
 
 #define MAINFILE "main.conf"
 #define CONFIGMAINFILE CONFIGDIR "/" MAINFILE
@@ -60,7 +60,7 @@ static char *default_blacklist[] = {
 };
 
 static struct {
-	connman_bool_t bg_scan;
+	bool bg_scan;
 	char **pref_timeservers;
 	unsigned int *auto_connect;
 	unsigned int *preferred_techs;
@@ -68,12 +68,12 @@ static struct {
 	unsigned int timeout_inputreq;
 	unsigned int timeout_browserlaunch;
 	char **blacklisted_interfaces;
-	connman_bool_t allow_hostname_updates;
-	connman_bool_t single_tech;
+	bool allow_hostname_updates;
+	bool single_tech;
 	char **tethering_technologies;
-	connman_bool_t persistent_tethering_mode;
+	bool persistent_tethering_mode;
 } connman_settings  = {
-	.bg_scan = TRUE,
+	.bg_scan = true,
 	.pref_timeservers = NULL,
 	.auto_connect = NULL,
 	.preferred_techs = NULL,
@@ -81,10 +81,10 @@ static struct {
 	.timeout_inputreq = DEFAULT_INPUT_REQUEST_TIMEOUT,
 	.timeout_browserlaunch = DEFAULT_BROWSER_LAUNCH_TIMEOUT,
 	.blacklisted_interfaces = NULL,
-	.allow_hostname_updates = TRUE,
-	.single_tech = FALSE,
+	.allow_hostname_updates = true,
+	.single_tech = false,
 	.tethering_technologies = NULL,
-	.persistent_tethering_mode = FALSE,
+	.persistent_tethering_mode = false,
 };
 
 #define CONF_BG_SCAN                    "BackgroundScanning"
@@ -146,13 +146,12 @@ static uint *parse_service_types(char **str_list, gsize len)
 	enum connman_service_type type;
 
 	type_list = g_try_new0(unsigned int, len + 1);
-	if (type_list == NULL)
+	if (!type_list)
 		return NULL;
 
 	i = 0;
 	j = 0;
-	while (str_list[i] != NULL)
-	{
+	while (str_list[i]) {
 		type = __connman_service_string2type(str_list[i]);
 
 		if (type != CONNMAN_SERVICE_TYPE_UNKNOWN) {
@@ -161,6 +160,8 @@ static uint *parse_service_types(char **str_list, gsize len)
 		}
 		i += 1;
 	}
+
+	type_list[j] = CONNMAN_SERVICE_TYPE_UNKNOWN;
 
 	return type_list;
 }
@@ -171,12 +172,12 @@ static char **parse_fallback_nameservers(char **nameservers, gsize len)
 	int i, j;
 
 	servers = g_try_new0(char *, len + 1);
-	if (servers == NULL)
+	if (!servers)
 		return NULL;
 
 	i = 0;
 	j = 0;
-	while (nameservers[i] != NULL) {
+	while (nameservers[i]) {
 		if (connman_inet_check_ipaddress(nameservers[i]) > 0) {
 			servers[j] = g_strdup(nameservers[i]);
 			j += 1;
@@ -192,12 +193,12 @@ static void check_config(GKeyFile *config)
 	char **keys;
 	int j;
 
-	if (config == NULL)
+	if (!config)
 		return;
 
 	keys = g_key_file_get_groups(config, NULL);
 
-	for (j = 0; keys != NULL && keys[j] != NULL; j++) {
+	for (j = 0; keys && keys[j]; j++) {
 		if (g_strcmp0(keys[j], "General") != 0)
 			connman_warn("Unknown group %s in %s",
 						keys[j], MAINFILE);
@@ -207,18 +208,18 @@ static void check_config(GKeyFile *config)
 
 	keys = g_key_file_get_keys(config, "General", NULL, NULL);
 
-	for (j = 0; keys != NULL && keys[j] != NULL; j++) {
-		connman_bool_t found;
+	for (j = 0; keys && keys[j]; j++) {
+		bool found;
 		int i;
 
-		found = FALSE;
-		for (i = 0; supported_options[i] != NULL; i++) {
+		found = false;
+		for (i = 0; supported_options[i]; i++) {
 			if (g_strcmp0(keys[j], supported_options[i]) == 0) {
-				found = TRUE;
+				found = true;
 				break;
 			}
 		}
-		if (found == FALSE && supported_options[i] == NULL)
+		if (!found && !supported_options[i])
 			connman_warn("Unknown option %s in %s",
 						keys[j], MAINFILE);
 	}
@@ -229,7 +230,7 @@ static void check_config(GKeyFile *config)
 static void parse_config(GKeyFile *config)
 {
 	GError *error = NULL;
-	gboolean boolean;
+	bool boolean;
 	char **timeservers;
 	char **interfaces;
 	char **str_list;
@@ -237,7 +238,7 @@ static void parse_config(GKeyFile *config)
 	gsize len;
 	int timeout;
 
-	if (config == NULL) {
+	if (!config) {
 		connman_settings.auto_connect =
 			parse_service_types(default_auto_connect, 3);
 		connman_settings.blacklisted_interfaces =
@@ -249,22 +250,22 @@ static void parse_config(GKeyFile *config)
 
 	boolean = g_key_file_get_boolean(config, "General",
 						CONF_BG_SCAN, &error);
-	if (error == NULL)
+	if (!error)
 		connman_settings.bg_scan = boolean;
 
 	g_clear_error(&error);
 
-	timeservers = g_key_file_get_string_list(config, "General",
+	timeservers = __connman_config_get_string_list(config, "General",
 					CONF_PREF_TIMESERVERS, NULL, &error);
-	if (error == NULL)
+	if (!error)
 		connman_settings.pref_timeservers = timeservers;
 
 	g_clear_error(&error);
 
-	str_list = g_key_file_get_string_list(config, "General",
+	str_list = __connman_config_get_string_list(config, "General",
 			CONF_AUTO_CONNECT, &len, &error);
 
-	if (error == NULL)
+	if (!error)
 		connman_settings.auto_connect =
 			parse_service_types(str_list, len);
 	else
@@ -275,10 +276,10 @@ static void parse_config(GKeyFile *config)
 
 	g_clear_error(&error);
 
-	str_list = g_key_file_get_string_list(config, "General",
+	str_list = __connman_config_get_string_list(config, "General",
 			CONF_PREFERRED_TECHS, &len, &error);
 
-	if (error == NULL)
+	if (!error)
 		connman_settings.preferred_techs =
 			parse_service_types(str_list, len);
 
@@ -286,10 +287,10 @@ static void parse_config(GKeyFile *config)
 
 	g_clear_error(&error);
 
-	str_list = g_key_file_get_string_list(config, "General",
+	str_list = __connman_config_get_string_list(config, "General",
 			CONF_FALLBACK_NAMESERVERS, &len, &error);
 
-	if (error == NULL)
+	if (!error)
 		connman_settings.fallback_nameservers =
 			parse_fallback_nameservers(str_list, len);
 
@@ -299,22 +300,22 @@ static void parse_config(GKeyFile *config)
 
 	timeout = g_key_file_get_integer(config, "General",
 			CONF_TIMEOUT_INPUTREQ, &error);
-	if (error == NULL && timeout >= 0)
+	if (!error && timeout >= 0)
 		connman_settings.timeout_inputreq = timeout * 1000;
 
 	g_clear_error(&error);
 
 	timeout = g_key_file_get_integer(config, "General",
 			CONF_TIMEOUT_BROWSERLAUNCH, &error);
-	if (error == NULL && timeout >= 0)
+	if (!error && timeout >= 0)
 		connman_settings.timeout_browserlaunch = timeout * 1000;
 
 	g_clear_error(&error);
 
-	interfaces = g_key_file_get_string_list(config, "General",
+	interfaces = __connman_config_get_string_list(config, "General",
 			CONF_BLACKLISTED_INTERFACES, &len, &error);
 
-	if (error == NULL)
+	if (!error)
 		connman_settings.blacklisted_interfaces = interfaces;
 	else
 		connman_settings.blacklisted_interfaces =
@@ -322,33 +323,33 @@ static void parse_config(GKeyFile *config)
 
 	g_clear_error(&error);
 
-	boolean = g_key_file_get_boolean(config, "General",
+	boolean = __connman_config_get_bool(config, "General",
 					CONF_ALLOW_HOSTNAME_UPDATES,
 					&error);
-	if (error == NULL)
+	if (!error)
 		connman_settings.allow_hostname_updates = boolean;
 
 	g_clear_error(&error);
 
-	boolean = g_key_file_get_boolean(config, "General",
+	boolean = __connman_config_get_bool(config, "General",
 			CONF_SINGLE_TECH, &error);
-	if (error == NULL)
+	if (!error)
 		connman_settings.single_tech = boolean;
 
 	g_clear_error(&error);
 
-	tethering = g_key_file_get_string_list(config, "General",
+	tethering = __connman_config_get_string_list(config, "General",
 			CONF_TETHERING_TECHNOLOGIES, &len, &error);
 
-	if (error == NULL)
+	if (!error)
 		connman_settings.tethering_technologies = tethering;
 
 	g_clear_error(&error);
 
-	boolean = g_key_file_get_boolean(config, "General",
+	boolean = __connman_config_get_bool(config, "General",
 					CONF_PERSISTENT_TETHERING_MODE,
 					&error);
-	if (error == NULL)
+	if (!error)
 		connman_settings.persistent_tethering_mode = boolean;
 
 	g_clear_error(&error);
@@ -361,7 +362,7 @@ static int config_init(const char *file)
 	config = load_config(file);
 	check_config(config);
 	parse_config(config);
-	if (config != NULL)
+	if (config)
 		g_key_file_free(config);
 
 	return 0;
@@ -458,7 +459,7 @@ static gboolean option_dnsproxy = TRUE;
 static gboolean option_backtrace = TRUE;
 static gboolean option_version = FALSE;
 
-static gboolean parse_debug(const char *key, const char *value,
+static bool parse_debug(const char *key, const char *value,
 					gpointer user_data, GError **error)
 {
 	if (value)
@@ -466,7 +467,7 @@ static gboolean parse_debug(const char *key, const char *value,
 	else
 		option_debug = g_strdup("*");
 
-	return TRUE;
+	return true;
 }
 
 static GOptionEntry options[] = {
@@ -503,7 +504,7 @@ static GOptionEntry options[] = {
 const char *connman_option_get_string(const char *key)
 {
 	if (g_strcmp0(key, "wifi") == 0) {
-		if (option_wifi == NULL)
+		if (!option_wifi)
 			return "nl80211,wext";
 		else
 			return option_wifi;
@@ -512,35 +513,35 @@ const char *connman_option_get_string(const char *key)
 	return NULL;
 }
 
-connman_bool_t connman_setting_get_bool(const char *key)
+bool connman_setting_get_bool(const char *key)
 {
-	if (g_str_equal(key, CONF_BG_SCAN) == TRUE)
+	if (g_str_equal(key, CONF_BG_SCAN))
 		return connman_settings.bg_scan;
 
-	if (g_str_equal(key, CONF_ALLOW_HOSTNAME_UPDATES) == TRUE)
+	if (g_str_equal(key, CONF_ALLOW_HOSTNAME_UPDATES))
 		return connman_settings.allow_hostname_updates;
 
-	if (g_str_equal(key, CONF_SINGLE_TECH) == TRUE)
+	if (g_str_equal(key, CONF_SINGLE_TECH))
 		return connman_settings.single_tech;
 
-	if (g_str_equal(key, CONF_PERSISTENT_TETHERING_MODE) == TRUE)
+	if (g_str_equal(key, CONF_PERSISTENT_TETHERING_MODE))
 		return connman_settings.persistent_tethering_mode;
 
-	return FALSE;
+	return false;
 }
 
 char **connman_setting_get_string_list(const char *key)
 {
-	if (g_str_equal(key, CONF_PREF_TIMESERVERS) == TRUE)
+	if (g_str_equal(key, CONF_PREF_TIMESERVERS))
 		return connman_settings.pref_timeservers;
 
-	if (g_str_equal(key, CONF_FALLBACK_NAMESERVERS) == TRUE)
+	if (g_str_equal(key, CONF_FALLBACK_NAMESERVERS))
 		return connman_settings.fallback_nameservers;
 
-	if (g_str_equal(key, CONF_BLACKLISTED_INTERFACES) == TRUE)
+	if (g_str_equal(key, CONF_BLACKLISTED_INTERFACES))
 		return connman_settings.blacklisted_interfaces;
 
-	if (g_str_equal(key, CONF_TETHERING_TECHNOLOGIES) == TRUE)
+	if (g_str_equal(key, CONF_TETHERING_TECHNOLOGIES))
 		return connman_settings.tethering_technologies;
 
 	return NULL;
@@ -548,20 +549,22 @@ char **connman_setting_get_string_list(const char *key)
 
 unsigned int *connman_setting_get_uint_list(const char *key)
 {
-	if (g_str_equal(key, CONF_AUTO_CONNECT) == TRUE)
+	if (g_str_equal(key, CONF_AUTO_CONNECT))
 		return connman_settings.auto_connect;
 
-	if (g_str_equal(key, CONF_PREFERRED_TECHS) == TRUE)
+	if (g_str_equal(key, CONF_PREFERRED_TECHS))
 		return connman_settings.preferred_techs;
 
 	return NULL;
 }
 
-unsigned int connman_timeout_input_request(void) {
+unsigned int connman_timeout_input_request(void)
+{
 	return connman_settings.timeout_inputreq;
 }
 
-unsigned int connman_timeout_browser_launch(void) {
+unsigned int connman_timeout_browser_launch(void)
+{
 	return connman_settings.timeout_browserlaunch;
 }
 
@@ -573,16 +576,11 @@ int main(int argc, char *argv[])
 	DBusError err;
 	guint signal;
 
-#ifdef NEED_THREADS
-	if (g_thread_supported() == FALSE)
-		g_thread_init(NULL);
-#endif
-
 	context = g_option_context_new(NULL);
 	g_option_context_add_main_entries(context, options, NULL);
 
-	if (g_option_context_parse(context, &argc, &argv, &error) == FALSE) {
-		if (error != NULL) {
+	if (!g_option_context_parse(context, &argc, &argv, &error)) {
+		if (error) {
 			g_printerr("%s\n", error->message);
 			g_error_free(error);
 		} else
@@ -592,12 +590,12 @@ int main(int argc, char *argv[])
 
 	g_option_context_free(context);
 
-	if (option_version == TRUE) {
+	if (option_version) {
 		printf("%s\n", VERSION);
 		exit(0);
 	}
 
-	if (option_detach == TRUE) {
+	if (option_detach) {
 		if (daemon(0, 0)) {
 			perror("Can't start daemon");
 			exit(1);
@@ -620,20 +618,13 @@ int main(int argc, char *argv[])
 
 	main_loop = g_main_loop_new(NULL, FALSE);
 
-#ifdef NEED_THREADS
-	if (dbus_threads_init_default() == FALSE) {
-		fprintf(stderr, "Can't init usage of threads\n");
-		exit(1);
-	}
-#endif
-
 	signal = setup_signalfd();
 
 	dbus_error_init(&err);
 
 	conn = g_dbus_setup_bus(DBUS_BUS_SYSTEM, CONNMAN_SERVICE, &err);
-	if (conn == NULL) {
-		if (dbus_error_is_set(&err) == TRUE) {
+	if (!conn) {
+		if (dbus_error_is_set(&err)) {
 			fprintf(stderr, "%s\n", err.message);
 			dbus_error_free(&err);
 		} else
@@ -648,7 +639,7 @@ int main(int argc, char *argv[])
 
 	__connman_dbus_init(conn);
 
-	if (option_config == NULL)
+	if (!option_config)
 		config_init(CONFIGMAINFILE);
 	else
 		config_init(option_config);
@@ -660,6 +651,7 @@ int main(int argc, char *argv[])
 	__connman_service_init();
 	__connman_provider_init();
 	__connman_network_init();
+	__connman_config_init();
 	__connman_device_init(option_device, option_nodevice);
 
 	__connman_ippool_init();
@@ -669,7 +661,6 @@ int main(int argc, char *argv[])
 	__connman_tethering_init();
 	__connman_counter_init();
 	__connman_manager_init();
-	__connman_config_init();
 	__connman_stats_init();
 	__connman_clock_init();
 
@@ -726,6 +717,7 @@ int main(int argc, char *argv[])
 	__connman_tethering_cleanup();
 	__connman_nat_cleanup();
 	__connman_firewall_cleanup();
+	__connman_nfacct_cleanup();
 	__connman_iptables_cleanup();
 	__connman_ippool_cleanup();
 	__connman_device_cleanup();
@@ -745,7 +737,7 @@ int main(int argc, char *argv[])
 
 	g_main_loop_unref(main_loop);
 
-	if (connman_settings.pref_timeservers != NULL)
+	if (connman_settings.pref_timeservers)
 		g_strfreev(connman_settings.pref_timeservers);
 
 	g_free(connman_settings.auto_connect);

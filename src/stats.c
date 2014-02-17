@@ -125,7 +125,7 @@ struct stats_iter {
 	struct stats_record *it;
 };
 
-GHashTable *stats_hash = NULL;
+static GHashTable *stats_hash = NULL;
 
 static struct stats_file_header *get_hdr(struct stats_file *file)
 {
@@ -219,7 +219,7 @@ static void stats_free(gpointer user_data)
 {
 	struct stats_file *file = user_data;
 
-	if (file == NULL)
+	if (!file)
 		return;
 
 	msync(file->addr, file->len, MS_SYNC);
@@ -230,12 +230,12 @@ static void stats_free(gpointer user_data)
 	TFR(close(file->fd));
 	file->fd = -1;
 
-	if (file->history_name != NULL) {
+	if (file->history_name) {
 		g_free(file->history_name);
 		file->history_name = NULL;
 	}
 
-	if (file->name != NULL) {
+	if (file->name) {
 		g_free(file->name);
 		file->name = NULL;
 	}
@@ -295,7 +295,7 @@ static int stats_file_remap(struct stats_file *file, size_t size)
 		return -errno;
 	}
 
-	if (file->addr == NULL) {
+	if (!file->addr) {
 		/*
 		 * Though the buffer is not shared between processes, we still
 		 * have to take MAP_SHARED because MAP_PRIVATE does not
@@ -472,18 +472,18 @@ static struct stats_record *process_file(struct stats_iter *iter,
 	home = NULL;
 	roaming = NULL;
 
-	if (cur == NULL)
+	if (!cur)
 		cur = get_next_record(iter);
 	next = get_next_record(iter);
 
-	while (next != NULL) {
+	while (next) {
 		GDate date_cur;
 		GDate date_next;
 		int append;
 
 		append = FALSE;
 
-		if (cur->roaming == TRUE)
+		if (cur->roaming)
 			roaming = cur;
 		else
 			home = cur;
@@ -514,13 +514,13 @@ static struct stats_record *process_file(struct stats_iter *iter,
 				append = TRUE;
 		}
 
-		if (append == TRUE) {
-			if (home != NULL) {
+		if (append) {
+			if (home) {
 				append_record(temp_file, home);
 				home = NULL;
 			}
 
-			if (roaming != NULL) {
+			if (roaming) {
 				append_record(temp_file, roaming);
 				roaming = NULL;
 			}
@@ -562,7 +562,7 @@ static int summarize(struct stats_file *data_file,
 	/* Now process history file */
 	cur = NULL;
 
-	if (history_file != NULL) {
+	if (history_file) {
 		history_iter.file = history_file;
 		history_iter.begin = get_iterator_begin(history_iter.file);
 		history_iter.end = get_iterator_end(history_iter.file);
@@ -582,9 +582,9 @@ static int summarize(struct stats_file *data_file,
 	 * Ensure date_file records are newer than the history_file
 	 * record
 	 */
-	if (cur != NULL) {
+	if (cur) {
 		next = get_next_record(&data_iter);
-		while (next != NULL && cur->ts > next->ts)
+		while (next && cur->ts > next->ts)
 			next = get_next_record(&data_iter);
 	}
 
@@ -593,7 +593,7 @@ static int summarize(struct stats_file *data_file,
 				&date_change_step_size,
 				data_file->account_period_offset);
 
-	if (cur != NULL)
+	if (cur)
 		append_record(temp_file, cur);
 
 	return 0;
@@ -677,9 +677,9 @@ int __connman_stats_service_register(struct connman_service *service)
 	DBG("service %p", service);
 
 	file = g_hash_table_lookup(stats_hash, service);
-	if (file == NULL) {
+	if (!file) {
 		file = g_try_new0(struct stats_file, 1);
-		if (file == NULL)
+		if (!file)
 			return -ENOMEM;
 
 		g_hash_table_insert(stats_hash, service, file);
@@ -692,7 +692,7 @@ int __connman_stats_service_register(struct connman_service *service)
 
 	/* If the dir doesn't exist, create it */
 	if (!g_file_test(dir, G_FILE_TEST_IS_DIR)) {
-		if(mkdir(dir, MODE) < 0) {
+		if (mkdir(dir, MODE) < 0) {
 			if (errno != EEXIST) {
 				g_free(dir);
 
@@ -737,7 +737,7 @@ void __connman_stats_service_unregister(struct connman_service *service)
 }
 
 int  __connman_stats_update(struct connman_service *service,
-				connman_bool_t roaming,
+				bool roaming,
 				struct connman_stats_data *data)
 {
 	struct stats_file *file;
@@ -745,7 +745,7 @@ int  __connman_stats_update(struct connman_service *service,
 	int err;
 
 	file = g_hash_table_lookup(stats_hash, service);
-	if (file == NULL)
+	if (!file)
 		return -EEXIST;
 
 	if (file->len < file->max_len &&
@@ -772,7 +772,7 @@ int  __connman_stats_update(struct connman_service *service,
 	next->roaming = roaming;
 	memcpy(&next->data, data, sizeof(struct connman_stats_data));
 
-	if (roaming != TRUE)
+	if (!roaming)
 		set_home(file, next);
 	else
 		set_roaming(file, next);
@@ -783,22 +783,22 @@ int  __connman_stats_update(struct connman_service *service,
 }
 
 int __connman_stats_get(struct connman_service *service,
-				connman_bool_t roaming,
+				bool roaming,
 				struct connman_stats_data *data)
 {
 	struct stats_file *file;
 	struct stats_record *rec;
 
 	file = g_hash_table_lookup(stats_hash, service);
-	if (file == NULL)
+	if (!file)
 		return -EEXIST;
 
-	if (roaming != TRUE)
+	if (!roaming)
 		rec = file->home;
 	else
 		rec = file->roaming;
 
-	if (rec != NULL) {
+	if (rec) {
 		memcpy(data, &rec->data,
 			sizeof(struct connman_stats_data));
 	}
