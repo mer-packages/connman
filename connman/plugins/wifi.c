@@ -1844,6 +1844,13 @@ static void network_added(GSupplicantNetwork *supplicant_network)
 	connman_network_set_frequency(network,
 			g_supplicant_network_get_frequency(supplicant_network));
 
+	connman_network_set_bssid(network,
+			g_supplicant_network_get_bssid(supplicant_network));
+	connman_network_set_maxrate(network,
+			g_supplicant_network_get_maxrate(supplicant_network));
+	connman_network_set_enc_mode(network,
+			g_supplicant_network_get_enc_mode(supplicant_network));
+
 	connman_network_set_available(network, true);
 	connman_network_set_string(network, "WiFi.Mode", mode);
 
@@ -1898,6 +1905,9 @@ static void network_changed(GSupplicantNetwork *network, const char *property)
 	struct wifi_data *wifi;
 	const char *name, *identifier;
 	struct connman_network *connman_network;
+	const unsigned char *bssid;
+	unsigned int maxrate;
+	uint16_t frequency;
 
 	interface = g_supplicant_network_get_interface(network);
 	wifi = g_supplicant_interface_get_data(interface);
@@ -1918,6 +1928,14 @@ static void network_changed(GSupplicantNetwork *network, const char *property)
 					calculate_strength(network));
 	       connman_network_update(connman_network);
 	}
+	bssid = g_supplicant_network_get_bssid(network);
+	maxrate = g_supplicant_network_get_maxrate(network);
+	frequency = g_supplicant_network_get_frequency(network);
+
+	connman_network_set_bssid(connman_network, bssid);
+	connman_network_set_maxrate(connman_network, maxrate);
+	connman_network_set_frequency(connman_network, frequency);
+
 }
 
 static void debug(const char *str)
