@@ -1,6 +1,6 @@
 Name:       connman
 Summary:    Connection Manager
-Version:    1.15
+Version:    1.21
 Release:    1
 Group:      Communications/ConnMan
 License:    GPLv2
@@ -84,6 +84,7 @@ Documentation for connman.
 %setup -q -n %{name}-%{version}/connman
 
 %build
+cd connman
 
 %reconfigure --disable-static \
     --enable-threads \
@@ -104,6 +105,7 @@ make %{?jobs:-j%jobs}
 
 %install
 rm -rf %{buildroot}
+cd connman
 %make_install
 mkdir -p %{buildroot}%{_sysconfdir}/tracing/connman/
 cp -a %{SOURCE1} %{buildroot}%{_sysconfdir}/tracing/connman/
@@ -129,7 +131,7 @@ systemctl daemon-reload || :
 
 %files
 %defattr(-,root,root,-)
-%doc AUTHORS COPYING ChangeLog README
+#%doc AUTHORS COPYING ChangeLog README
 %{_sbindir}/*
 %{_libdir}/%{name}/scripts/*
 %config %{_sysconfdir}/dbus-1/system.d/*.conf
@@ -140,7 +142,7 @@ systemctl daemon-reload || :
 
 %files devel
 %defattr(-,root,root,-)
-%doc AUTHORS COPYING
+#%doc AUTHORS COPYING
 %{_includedir}/%{name}/*.h
 %{_libdir}/pkgconfig/*.pc
 
