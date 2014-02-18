@@ -40,6 +40,8 @@
  * After this time elapsed, we can send another RS.
  */
 #define RS_REFRESH_TIMEOUT	3
+#define WIFI_ENCYPTION_MODE_LEN_MAX 6
+#define WIFI_BSSID_LEN_MAX 6
 
 static GSList *network_list = NULL;
 static GSList *driver_list = NULL;
