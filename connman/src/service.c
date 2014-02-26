@@ -2603,6 +2603,7 @@ void __connman_saved_service_list_struct_fn(DBusMessageIter *iter, connman_dbus_
 			service->identifier = g_strdup(services[i]);
 			service->path = g_strdup_printf("%s/service/%s", CONNMAN_PATH, service->identifier);
 
+      DBG("%s", service->identifier);
 			service->type = __connman_service_string2type(service->identifier);
 
 			service_load(service);
@@ -6203,10 +6204,13 @@ static int service_connect(struct connman_service *service)
 				return -EINVAL;
 
 			/*
-			 * never request credentials if using EAP-TLS
-			 * (EAP-TLS networks need to be fully provisioned)
+			 * never request credentials if using EAP-TLS, EAP-SIM
+			 * or EAP-AKA (EAP-TLS, EAP-SIM and EAP-AKA networks
+			 * need to be fully provisioned)
 			 */
-			if (g_str_equal(service->eap, "tls"))
+			if (g_str_equal(service->eap, "tls") == TRUE ||
+				g_str_equal(service->eap, "sim") == TRUE ||
+				g_str_equal(service->eap, "aka") == TRUE)
 				break;
 
 			/*

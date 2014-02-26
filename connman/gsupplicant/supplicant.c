@@ -3424,14 +3424,18 @@ static void add_network_security_eap(DBusMessageIter *dict,
 {
 	char *eap_value;
 
-	if (!ssid->eap || !ssid->identity)
+	if (!ssid->eap)
 		return;
 
 	if (g_strcmp0(ssid->eap, "tls") == 0) {
 		add_network_security_tls(dict, ssid);
 	} else if (g_strcmp0(ssid->eap, "peap") == 0 ||
 				g_strcmp0(ssid->eap, "ttls") == 0) {
+		if (!ssid->identity)
+			return;
 		add_network_security_peap(dict, ssid);
+	} else if (g_strcmp0(ssid->eap, "sim") == 0 ||
+			g_strcmp0(ssid->eap, "aka") == 0) {
 	} else
 		return;
 
@@ -3440,6 +3444,7 @@ static void add_network_security_eap(DBusMessageIter *dict,
 	supplicant_dbus_dict_append_basic(dict, "eap",
 						DBUS_TYPE_STRING,
 						&eap_value);
+	if (ssid->identity != NULL)
 	supplicant_dbus_dict_append_basic(dict, "identity",
 						DBUS_TYPE_STRING,
 						&ssid->identity);
