@@ -80,6 +80,8 @@ struct connman_technology {
 	connman_bool_t softblocked;
 	connman_bool_t hardblocked;
 	connman_bool_t dbus_registered;
+
+	char *preferred_service;
 };
 
 static GSList *driver_list = NULL;
@@ -408,6 +410,39 @@ int connman_technology_set_regdom(const char *alpha2)
 	return 0;
 }
 
+void connman_technology_preferred_service_notify(struct connman_technology *technology,
+							const char *preferred)
+{
+	DBG("technology %p preferred service %s", technology, preferred);
+
+	if (technology == NULL)
+		return;
+
+	if (g_strcmp0(technology->preferred_service, preferred) == 0)
+		return;
+
+	technology->preferred_service = g_strdup(preferred);
+
+	connman_dbus_property_changed_basic(technology->path,
+				CONNMAN_TECHNOLOGY_INTERFACE, "PreferredService",
+				DBUS_TYPE_STRING, &technology->preferred_service);
+}
+
+static void set_preferred_service(struct connman_technology *technology, const char *preferred)
+{
+	GSList *tech_drivers;
+
+	for (tech_drivers = technology->driver_list; tech_drivers != NULL;
+		tech_drivers = g_slist_next(tech_drivers)) {
+		struct connman_technology_driver *driver = tech_drivers->data;
+
+		if (driver == NULL || driver->set_preferred_service == NULL)
+			continue;
+
+		driver->set_preferred_service(technology, preferred);
+	}
+}
+
 static struct connman_technology *technology_find(enum connman_service_type type)
 {
 	GSList *list;
@@ -604,6 +639,11 @@ static void append_properties(DBusMessageIter *iter,
 		connman_dbus_dict_append_basic(&dict, "TetheringPassphrase",
 					DBUS_TYPE_STRING,
 					&technology->tethering_passphrase);
+
+	if (technology->preferred_service != NULL)
+		connman_dbus_dict_append_basic(&dict, "PreferredService",
+					DBUS_TYPE_STRING,
+					&technology->preferred_service);
 
 	connman_dbus_dict_close(iter, &dict);
 }
@@ -916,6 +956,12 @@ static DBusMessage *set_property(DBusConnection *conn,
 		dbus_message_iter_get_basic(&value, &enable);
 
 		return set_powered(technology, msg, enable);
+	} else if (g_str_equal(name, "PreferredService") == TRUE) {
+		const char *str;
+
+		dbus_message_iter_get_basic(&value, &str);
+
+		set_preferred_service(technology, str);
 	} else
 		return __connman_error_invalid_property(msg);
 
@@ -1198,6 +1244,7 @@ static void technology_put(struct connman_technology *technology)
 	g_free(technology->regdom);
 	g_free(technology->tethering_ident);
 	g_free(technology->tethering_passphrase);
+	g_free(technology->preferred_service);
 	g_free(technology);
 }
 
