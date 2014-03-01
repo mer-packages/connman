@@ -46,6 +46,9 @@ connman_bool_t connman_technology_get_wifi_tethering(const char **ssid,
 							const char **psk);
 connman_bool_t connman_technology_is_tethering_allowed(enum connman_service_type type);
 
+void connman_technology_preferred_service_notify(struct connman_technology *technology,
+							const char *preferred);
+
 struct connman_technology_driver {
 	const char *name;
 	enum connman_service_type type;
@@ -62,6 +65,8 @@ struct connman_technology_driver {
 				const char *bridge, connman_bool_t enabled);
 	int (*set_regdom) (struct connman_technology *technology,
 						const char *alpha2);
+	void (*set_preferred_service) (struct connman_technology *technology,
+						const char *path);
 };
 
 int connman_technology_driver_register(struct connman_technology_driver *driver);

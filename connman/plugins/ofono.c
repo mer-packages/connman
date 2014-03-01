@@ -5,6 +5,7 @@
  *  Copyright (C) 2007-2012  Intel Corporation. All rights reserved.
  *  Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
  *  Copyright (C) 2011  BWM Car IT GmbH. All rights reserved.
+ *  Copyright (C) 2014 Jolla Ltd. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2 as
@@ -31,6 +32,7 @@
 #include <gdbus.h>
 #include <string.h>
 #include <stdint.h>
+#include <ctype.h>
 
 #define CONNMAN_API_SUBJECT_TO_CHANGE
 #include <connman/plugin.h>
@@ -40,6 +42,7 @@
 #include <connman/dbus.h>
 #include <connman/log.h>
 #include <connman/technology.h>
+#include <connman/storage.h>
 
 #include "mcc.h"
 #include "connman.h"
@@ -127,13 +130,21 @@ enum ofono_api {
  */
 
 static DBusConnection *connection;
+static struct connman_technology *cellular_technology = NULL;
 
-static GHashTable *modem_hash;
-static GHashTable *context_hash;
+static GHashTable *modem_hash = NULL;
+static GHashTable *context_hash = NULL;
+
+static char *preferred_service = NULL;
+
+struct modem_data;
 
 struct network_context {
 	char *path;
+	struct modem_data *modem;
 	int index;
+	connman_bool_t active;
+	connman_bool_t valid_apn;
 
 	enum connman_ipconfig_method ipv4_method;
 	struct connman_ipaddress *ipv4_address;
@@ -169,9 +180,7 @@ struct modem_data {
 	connman_bool_t cm_powered;
 
 	/* ConnectionContext Interface */
-	connman_bool_t active;
 	connman_bool_t set_active;
-	connman_bool_t valid_apn; /* APN is 'valid' if length > 0 */
 
 	/* SimManager Interface */
 	char *imsi;
@@ -188,6 +197,9 @@ struct modem_data {
 	DBusPendingCall	*call_get_properties;
 	DBusPendingCall *call_get_contexts;
 };
+
+static void remove_cm_context(struct modem_data *modem,
+				const char *context_path);
 
 static const char *api2string(enum ofono_api api)
 {
@@ -231,6 +243,9 @@ static struct network_context *network_context_alloc(const char *path)
 
 	context->path = g_strdup(path);
 	context->index = -1;
+	context->modem = NULL;
+	context->active = FALSE;
+	context->valid_apn = FALSE;
 
 	context->ipv4_method = CONNMAN_IPCONFIG_METHOD_UNKNOWN;
 	context->ipv4_address = NULL;
@@ -243,8 +258,10 @@ static struct network_context *network_context_alloc(const char *path)
 	return context;
 }
 
-static void network_context_free(struct network_context *context)
+static void network_context_free(gpointer data)
 {
+	struct network_context *context = data;
+
 	g_free(context->path);
 
 	connman_ipaddress_free(context->ipv4_address);
@@ -992,6 +1009,9 @@ static void create_device(struct modem_data *modem)
 		modem_set_online(modem, TRUE);
 	}
 
+	connman_technology_preferred_service_notify(cellular_technology,
+			preferred_service);
+
 	connman_device_set_powered(modem->device, modem->online);
 
 out:
@@ -1071,22 +1091,13 @@ static void remove_network(struct modem_data *modem)
 	modem->network = NULL;
 }
 
-static int add_cm_context(struct modem_data *modem, const char *context_path,
+static int extract_cm_context(struct modem_data *modem, const char *context_path,
 				DBusMessageIter *dict)
 {
 	const char *context_type = NULL;
 	struct network_context *context = NULL;
-	connman_bool_t active = FALSE;
 
 	DBG("%s context path %s", modem->path, context_path);
-
-	if (modem->context != NULL) {
-		/*
-		 * We have already assigned a context to this modem
-		 * and we do only support one Internet context.
-		 */
-		return -EALREADY;
-	}
 
 	context = network_context_alloc(context_path);
 	if (context == NULL)
@@ -1116,17 +1127,17 @@ static int add_cm_context(struct modem_data *modem, const char *context_path,
 
 			extract_ipv6_settings(&value, context);
 		} else if (g_str_equal(key, "Active") == TRUE) {
-			dbus_message_iter_get_basic(&value, &active);
+			dbus_message_iter_get_basic(&value, &context->active);
 
-			DBG("%s Active %d", modem->path, active);
+			DBG("%s Active %d", modem->path, context->active);
 		} else if (g_str_equal(key, "AccessPointName") == TRUE) {
 			const char *apn;
 
 			dbus_message_iter_get_basic(&value, &apn);
 			if (apn != NULL && strlen(apn) > 0)
-				modem->valid_apn = TRUE;
+				context->valid_apn = TRUE;
 			else
-				modem->valid_apn = FALSE;
+				context->valid_apn = FALSE;
 
 			DBG("%s AccessPointName '%s'", modem->path, apn);
 		}
@@ -1134,16 +1145,81 @@ static int add_cm_context(struct modem_data *modem, const char *context_path,
 	}
 
 	if (g_strcmp0(context_type, "internet") != 0) {
+		DBG("Skip non-internet context %s", context_type);
 		network_context_free(context);
 		return -EINVAL;
 	}
 
-	modem->context = context;
-	modem->active = active;
+	context->modem = modem;
 
-	g_hash_table_replace(context_hash, g_strdup(context_path), modem);
+	g_hash_table_replace(context_hash, g_strdup(context_path), context);
 
-	if (modem->valid_apn == TRUE && modem->attached == TRUE &&
+	return 0;
+}
+
+static connman_bool_t lower_context(const char *path1, const char *path2)
+{
+	const char *num1, *num2;
+
+	if (!path1)
+		return FALSE;
+
+	if (!path2)
+		return TRUE;
+
+	num1 = path1 + strlen(path1) - 1;
+	while (num1 > path1 && isdigit(*(num1-1)))
+		--num1;
+
+	num2 = path2 + strlen(path2) - 1;
+	while (num2 > path2 && isdigit(*(num2-1)))
+		--num2;
+
+	return atoi(num1) < atoi(num2);
+}
+
+static int select_cm_context(struct modem_data *modem)
+{
+	DBG("%s", modem->path);
+
+	GHashTableIter iter;
+	struct network_context *context, *context_match = NULL;
+	gpointer key;
+
+    if (context_hash == NULL || g_hash_table_size(context_hash) == 0)
+        return -ENOENT;
+
+	g_hash_table_iter_init(&iter, context_hash);
+	while (g_hash_table_iter_next(&iter, (gpointer) &key, (gpointer) &context)) {
+		if (context->modem == modem && context->valid_apn) {
+			if (!context_match) {
+				context_match = context;
+			} else if (context->path && g_strcmp0(context->path, preferred_service) == 0) {
+				context_match = context;
+				break;
+			} else if (lower_context(context->path, context_match->path)) {
+				context_match = context;
+			}
+		}
+	}
+
+	DBG("Selected context %s", context_match->path);
+
+	if (!context_match)
+		return -ENOENT;
+
+	if (context_match == modem->context)
+		return 0;
+
+	/*
+	 * We've already added a context, but we have a better one
+	 */
+	if (modem->context)
+		remove_cm_context(modem, modem->context->path);
+
+	modem->context = context_match;
+
+	if (context_match->valid_apn == TRUE && modem->attached == TRUE &&
 			has_interface(modem->interfaces,
 				OFONO_API_NETREG) == TRUE) {
 		add_network(modem);
@@ -1152,24 +1228,36 @@ static int add_cm_context(struct modem_data *modem, const char *context_path,
 	return 0;
 }
 
+static int add_cm_context(struct modem_data *modem, const char *context_path,
+				DBusMessageIter *dict)
+{
+	DBG("%s", modem->path);
+	int rv = extract_cm_context(modem, context_path, dict);
+	if (rv)
+		return rv;
+
+	return select_cm_context(modem);
+}
+
 static void remove_cm_context(struct modem_data *modem,
 				const char *context_path)
 {
-	if (modem->context == NULL)
-		return;
+	DBG("%s", modem->path);
+	struct network_context *context;
 
-	if (modem->network != NULL)
-		remove_network(modem);
+	context = g_hash_table_lookup(context_hash, context_path);
+
+	if (context && modem->context == context) {
+		DBG("%s current context removed", modem->path);
+		modem->context = NULL;
+
+		if (modem->network != NULL)
+			remove_network(modem);
+
+		select_cm_context(modem);
+	}
 
 	g_hash_table_remove(context_hash, context_path);
-
-	network_context_free(modem->context);
-	modem->context = NULL;
-
-	modem->valid_apn = FALSE;
-
-	if (modem->network != NULL)
-		remove_network(modem);
 }
 
 static gboolean context_changed(DBusConnection *conn,
@@ -1177,13 +1265,18 @@ static gboolean context_changed(DBusConnection *conn,
 				void *user_data)
 {
 	const char *context_path = dbus_message_get_path(message);
+	struct network_context *context = NULL;
 	struct modem_data *modem = NULL;
 	DBusMessageIter iter, value;
 	const char *key;
 
 	DBG("context_path %s", context_path);
 
-	modem = g_hash_table_lookup(context_hash, context_path);
+	context = g_hash_table_lookup(context_hash, context_path);
+	if (context == NULL)
+		return TRUE;
+
+	modem = context->modem;
 	if (modem == NULL)
 		return TRUE;
 
@@ -1203,17 +1296,23 @@ static gboolean context_changed(DBusConnection *conn,
 	if (g_str_equal(key, "Settings") == TRUE) {
 		DBG("%s Settings", modem->path);
 
-		extract_ipv4_settings(&value, modem->context);
+		extract_ipv4_settings(&value, context);
 	} else if (g_str_equal(key, "IPv6.Settings") == TRUE) {
 		DBG("%s IPv6.Settings", modem->path);
 
-		extract_ipv6_settings(&value, modem->context);
+		extract_ipv6_settings(&value, context);
 	} else if (g_str_equal(key, "Active") == TRUE) {
-		dbus_message_iter_get_basic(&value, &modem->active);
+		dbus_message_iter_get_basic(&value, &context->active);
 
-		DBG("%s Active %d", modem->path, modem->active);
+		DBG("%s Active %d", modem->path, context->active);
 
-		if (modem->active == TRUE)
+		/*
+		 * Not our managed context - ignore
+		 */
+		if (modem->context != context)
+			return TRUE;
+
+		if (context->active == TRUE)
 			set_connected(modem);
 		else
 			set_disconnected(modem);
@@ -1224,9 +1323,15 @@ static gboolean context_changed(DBusConnection *conn,
 
 		DBG("%s AccessPointName %s", modem->path, apn);
 
-		if (apn != NULL && strlen(apn) > 0) {
-			modem->valid_apn = TRUE;
+		context->valid_apn = apn != NULL && strlen(apn) > 0;
 
+		/*
+		 * Not our managed context - ignore.
+		 */
+		if (modem->context != context)
+			return TRUE;
+
+		if (context->valid_apn) {
 			if (modem->network != NULL)
 				return TRUE;
 
@@ -1240,11 +1345,9 @@ static gboolean context_changed(DBusConnection *conn,
 
 			add_network(modem);
 
-			if (modem->active == TRUE)
+			if (context->active == TRUE)
 				set_connected(modem);
 		} else {
-			modem->valid_apn = FALSE;
-
 			if (modem->network == NULL)
 				return TRUE;
 
@@ -1293,11 +1396,12 @@ static void cm_get_contexts_reply(DBusPendingCall *call, void *user_data)
 		dbus_message_iter_next(&entry);
 		dbus_message_iter_recurse(&entry, &value);
 
-		if (add_cm_context(modem, context_path, &value) == 0)
-			break;
+		extract_cm_context(modem, context_path, &value);
 
 		dbus_message_iter_next(&dict);
 	}
+
+	select_cm_context(modem);
 
 done:
 	dbus_message_unref(reply);
@@ -1376,7 +1480,7 @@ static gboolean cm_context_removed(DBusConnection *conn,
 {
 	const char *path = dbus_message_get_path(message);
 	const char *context_path;
-	struct modem_data *modem;
+	struct network_context *context;
 	DBusMessageIter iter;
 
 	DBG("context path %s", path);
@@ -1386,14 +1490,78 @@ static gboolean cm_context_removed(DBusConnection *conn,
 
 	dbus_message_iter_get_basic(&iter, &context_path);
 
-	modem = g_hash_table_lookup(context_hash, context_path);
-	if (modem == NULL)
+	context = g_hash_table_lookup(context_hash, context_path);
+	if (context == NULL)
 		return TRUE;
 
-	remove_cm_context(modem, context_path);
+	remove_cm_context(context->modem, context_path);
 
 	return TRUE;
 }
+
+static void subscriber_settings_load(struct modem_data *modem)
+{
+	GKeyFile *keyfile = NULL;
+	gchar *service_id;
+
+	if (modem->imsi == NULL)
+		return;
+
+	service_id = g_strdup_printf("cellular_%s_subscriber", modem->imsi);
+	keyfile = __connman_storage_open_service(service_id);
+
+	if (keyfile) {
+        g_free(preferred_service);
+		preferred_service = g_key_file_get_string(keyfile,
+					"Settings", "PreferredService", NULL);
+
+		connman_technology_preferred_service_notify(cellular_technology,
+					preferred_service);
+
+		g_key_file_free(keyfile);
+    }
+
+	g_free(service_id);
+}
+
+static void subscriber_settings_save(struct modem_data *modem)
+{
+	GKeyFile *keyfile = NULL;
+	gchar *service_id;
+
+	if (modem->imsi == NULL)
+		return;
+
+	service_id = g_strdup_printf("cellular_%s_subscriber", modem->imsi);
+	keyfile = __connman_storage_open_service(service_id);
+
+	if (keyfile) {
+		g_key_file_set_string(keyfile, "Settings", "PreferredService",
+				preferred_service);
+
+		__connman_storage_save_service(keyfile, service_id);
+		g_key_file_free(keyfile);
+	}
+
+	g_free(service_id);
+}
+
+static void set_preferred_service(struct modem_data *modem, const char *preferred)
+{
+	if (modem == NULL)
+		return;
+
+	g_free(preferred_service);
+	preferred_service = g_strdup(preferred);
+
+	subscriber_settings_save(modem);
+
+	connman_technology_preferred_service_notify(cellular_technology,
+                preferred_service);
+
+	select_cm_context(modem);
+}
+
 
 static void netreg_update_name(struct modem_data *modem,
 				DBusMessageIter* value)
@@ -1586,10 +1754,10 @@ static void netreg_properties_reply(struct modem_data *modem,
 		return;
 	}
 
-	if (modem->valid_apn == TRUE)
+	if (modem->context->valid_apn == TRUE)
 		add_network(modem);
 
-	if (modem->active == TRUE)
+	if (modem->context->active == TRUE)
 		set_connected(modem);
 }
 
@@ -1924,6 +2092,8 @@ static gboolean sim_changed(DBusConnection *conn, DBusMessage *message,
 	if (g_str_equal(key, "SubscriberIdentity") == TRUE) {
 		sim_update_imsi(modem, &value);
 
+		subscriber_settings_load(modem);
+
 		if (ready_to_create_device(modem) == FALSE)
 			return TRUE;
 
@@ -1956,6 +2126,8 @@ static void sim_properties_reply(struct modem_data *modem,
 
 		if (g_str_equal(key, "SubscriberIdentity") == TRUE) {
 			sim_update_imsi(modem, &value);
+
+			subscriber_settings_load(modem);
 
 			if (ready_to_create_device(modem) == FALSE)
 				return;
@@ -2379,7 +2551,7 @@ static int manager_get_modems(void)
 		return -ENOMEM;
 
 	if (dbus_connection_send_with_reply(connection, message,
-					       &call, TIMEOUT) == FALSE) {
+						&call, TIMEOUT) == FALSE) {
 		connman_error("Failed to call GetModems()");
 		dbus_message_unref(message);
 		return -EINVAL;
@@ -2409,7 +2581,7 @@ static void ofono_connect(DBusConnection *conn, void *user_data)
 		return;
 
 	context_hash = g_hash_table_new_full(g_str_hash, g_str_equal,
-						g_free, NULL);
+						g_free, network_context_free);
 	if (context_hash == NULL) {
 		g_hash_table_destroy(modem_hash);
 		return;
@@ -2540,11 +2712,32 @@ static struct connman_device_driver modem_driver = {
 
 static int tech_probe(struct connman_technology *technology)
 {
+	cellular_technology = technology;
+	if (preferred_service != NULL)
+		connman_technology_preferred_service_notify(cellular_technology,
+					preferred_service);
 	return 0;
 }
 
 static void tech_remove(struct connman_technology *technology)
 {
+	cellular_technology = NULL;
+}
+
+static void tech_set_preferred(struct connman_technology *technology, const char *service)
+{
+	GHashTableIter iter;
+	struct modem_data *modem;
+	gpointer key;
+
+	if (modem_hash == NULL || g_hash_table_size(modem_hash) == 0)
+		return;
+
+	g_hash_table_iter_init(&iter, modem_hash);
+	while (g_hash_table_iter_next(&iter, (gpointer) &key, (gpointer) &modem)) {
+		if (modem)
+			set_preferred_service(modem, service);
+	}
 }
 
 static struct connman_technology_driver tech_driver = {
@@ -2552,6 +2745,7 @@ static struct connman_technology_driver tech_driver = {
 	.type		= CONNMAN_SERVICE_TYPE_CELLULAR,
 	.probe		= tech_probe,
 	.remove		= tech_remove,
+	.set_preferred_service = tech_set_preferred
 };
 
 static guint watch;
@@ -2720,6 +2914,9 @@ static void ofono_exit(void)
 		g_hash_table_destroy(context_hash);
 		context_hash = NULL;
 	}
+
+	g_free(preferred_service);
+	preferred_service = NULL;
 
 	connman_technology_driver_unregister(&tech_driver);
 	connman_device_driver_unregister(&modem_driver);
