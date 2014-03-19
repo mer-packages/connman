@@ -92,7 +92,6 @@ Documentation for connman.
 %setup -q -n %{name}-%{version}/connman
 
 %build
-cd connman
 %reconfigure --disable-static \
     --enable-threads \
     --enable-ethernet=builtin \
@@ -113,7 +112,6 @@ make %{?jobs:-j%jobs}
 
 %install
 rm -rf %{buildroot}
-cd connman
 %make_install
 
 mkdir -p %{buildroot}%{_libdir}/%{name}/tools
@@ -143,7 +141,7 @@ systemctl daemon-reload || :
 
 %files
 %defattr(-,root,root,-)
-#%doc AUTHORS COPYING ChangeLog README
+%doc AUTHORS COPYING ChangeLog README
 %{_sbindir}/*
 %{_libdir}/%{name}/scripts/*
 %config %{_sysconfdir}/dbus-1/system.d/*.conf
@@ -154,7 +152,7 @@ systemctl daemon-reload || :
 
 %files devel
 %defattr(-,root,root,-)
-#%doc AUTHORS COPYING
+%doc AUTHORS COPYING
 %{_includedir}/%{name}/*.h
 %{_libdir}/pkgconfig/*.pc
 
