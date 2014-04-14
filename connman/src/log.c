@@ -51,7 +51,7 @@ void connman_info(const char *format, ...)
 
 	va_start(ap, format);
 
-	vsyslog(LOG_INFO, format, ap);
+	printf(format);
 
 	va_end(ap);
 }
