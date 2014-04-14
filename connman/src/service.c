@@ -2381,10 +2381,9 @@ void __connman_service_counter_reset_all(const char *type)
         if (strncmp(services[i], type, typeLength) != 0)
             continue;
 
-
+        __connman_service_counter_reset_saved(services[i]);
         struct connman_service *service = g_hash_table_lookup(service_hash, services[i]);
         if (service == NULL) {
-	    __connman_service_counter_reset_saved(services[i]);
             continue;
         }
 
