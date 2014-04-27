@@ -3333,7 +3333,7 @@ static void interface_select_network_result(const char *error,
 	SUPPLICANT_DBG("");
 
 	err = 0;
-	if (error) {
+	if (iter && error) {
 		SUPPLICANT_DBG("SelectNetwork error %s", error);
 		err = parse_supplicant_error(iter);
 	}
