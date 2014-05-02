@@ -256,6 +256,8 @@ static const char *response_code_to_string(int response_code)
 		return "Proxy detection/repeat operation";
 	case 201:
 		return "Authentication pending";
+	case 204:
+		return "Walled garden check";
 	case 255:
 		return "Access gateway internal error";
 	}
@@ -722,6 +724,9 @@ static gboolean wispr_portal_web_result(GWebResult *result, gpointer user_data)
 					wp_context->redirect_url, wp_context);
 
 		break;
+	case 204:
+		portal_manage_status(result, wp_context);
+		return FALSE;
 	case 302:
 		if (g_web_supports_tls() == FALSE ||
 				g_web_result_get_header(result, "Location",
