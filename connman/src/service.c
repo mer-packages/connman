@@ -3768,9 +3768,6 @@ static bool is_ignore(struct connman_service *service)
 	if (service->ignore)
 		return true;
 
-	if (service->state == CONNMAN_SERVICE_STATE_FAILURE)
-		return true;
-
 	if (!is_ipconfig_usable(service))
 		return true;
 
@@ -3946,8 +3943,9 @@ static bool auto_connect_service(GList *services,
 			return autoconnecting;
 		}
 
-		if (is_ignore(service) || service->state !=
-				CONNMAN_SERVICE_STATE_IDLE)
+		if (is_ignore(service) ||
+			(service->state != CONNMAN_SERVICE_STATE_IDLE
+			&& service->state != CONNMAN_SERVICE_STATE_FAILURE))
 			continue;
 
 		if (autoconnecting && !active_sessions[service->type]) {
