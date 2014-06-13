@@ -3957,9 +3957,7 @@ DBG("state %d, failure_connect_interval %d"
     ,service->state,failure_connect_interval);
 
 		if (service->state == CONNMAN_SERVICE_STATE_FAILURE) {
-			if (failure_connect_interval < 0) {
-				continue;
-			} else if (failure_connect_interval == 0) {
+			if (failure_connect_interval <= 0) {
 				failure_connect_interval = 5;
 				g_timeout_add_seconds((guint)failure_connect_interval, connect_failure_timeout, NULL);
 			}
