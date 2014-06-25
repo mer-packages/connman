@@ -4319,8 +4319,13 @@ static DBusMessage *connect_service(DBusConnection *conn,
 
 	failure_connect_interval = 0;
 
+	/* mobile data connections forced by connectionagent should
+	 * be considered "auto" connections, otherwise mobile data
+	 * interface remains active after switching to wifi */
 	err = __connman_service_connect(service,
-			CONNMAN_SERVICE_CONNECT_REASON_USER);
+			(service->type == CONNMAN_SERVICE_TYPE_CELLULAR) ?
+				CONNMAN_SERVICE_CONNECT_REASON_AUTO :
+				CONNMAN_SERVICE_CONNECT_REASON_USER);
 
 	if (err == -EINPROGRESS)
 		return NULL;
