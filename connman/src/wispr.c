@@ -716,10 +716,19 @@ static bool wispr_portal_web_result(GWebResult *result, gpointer user_data)
 						&str)) {
 			portal_manage_status(result, wp_context);
 			break;
-		} else
-			__connman_agent_request_browser(wp_context->service,
+		} else {
+			if (!wp_context->redirect_url) {
+				__connman_agent_request_browser(
+					wp_context->service,
+					wispr_portal_browser_reply_cb,
+					wp_context->status_url, wp_context);
+			} else {
+				__connman_agent_request_browser(
+					wp_context->service,
 					wispr_portal_browser_reply_cb,
 					wp_context->redirect_url, wp_context);
+			}
+		}
 		break;
 	case 204:
 		portal_manage_status(result, wp_context);
