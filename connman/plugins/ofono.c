@@ -295,17 +295,23 @@ static void set_connected(struct modem_data *modem)
 	}
 
 	if (method == CONNMAN_IPCONFIG_METHOD_FIXED) {
-		connman_network_set_ipaddress(modem->network,
+		if (modem->context->ipv4_address) {
+			connman_network_set_ipaddress(modem->network,
 						modem->context->ipv4_address);
+		}
 	}
 
 	method = modem->context->ipv6_method;
 	if (method == CONNMAN_IPCONFIG_METHOD_FIXED) {
 		connman_service_create_ip6config(service, index);
 		connman_network_set_ipv6_method(modem->network, method);
-		connman_network_set_ipaddress(modem->network,
+
+		if (modem->context->ipv6_address) {
+			connman_network_set_ipaddress(modem->network,
 						modem->context->ipv6_address);
-		setip = true;
+			setip = true;
+		}
+
 	}
 
 	/* Set the nameservers */
@@ -858,22 +864,28 @@ static void extract_ipv4_settings(DBusMessageIter *array,
 	if (index < 0)
 		goto out;
 
-	context->index = index;
+	if (address) {
 
-	if (context->ipv4_method != CONNMAN_IPCONFIG_METHOD_FIXED)
-		goto out;
+		context->index = index;
 
-	context->ipv4_address = connman_ipaddress_alloc(CONNMAN_IPCONFIG_TYPE_IPV4);
-	if (!context->ipv4_address) {
-		context->index = -1;
-		goto out;
+		if (context->ipv4_method != CONNMAN_IPCONFIG_METHOD_FIXED)
+			goto out;
+
+		context->ipv4_address = connman_ipaddress_alloc(CONNMAN_IPCONFIG_TYPE_IPV4);
+		if (!context->ipv4_address) {
+			context->index = -1;
+			goto out;
+		}
+
+		connman_ipaddress_set_ipv4(context->ipv4_address, address,
+					netmask, gateway);
+
+		g_free(context->ipv4_nameservers);
+		context->ipv4_nameservers = nameservers;
+	} else {
+		context->ipv4_address = address;
+		g_free(context->ipv4_nameservers);
 	}
-
-	connman_ipaddress_set_ipv4(context->ipv4_address, address,
-				netmask, gateway);
-
-	g_free(context->ipv4_nameservers);
-	context->ipv4_nameservers = nameservers;
 
 out:
 	if (context->ipv4_nameservers != nameservers)
@@ -918,7 +930,7 @@ static void extract_ipv6_settings(DBusMessageIter *array,
 
 			DBG("Interface %s", interface);
 
-			index = connman_inet_ifindex(interface);
+			index = connman_inet6_ifindex(interface);
 
 			DBG("index %d", index);
 		} else if (g_str_equal(key, "Address")) {
@@ -951,18 +963,25 @@ static void extract_ipv6_settings(DBusMessageIter *array,
 
 	context->ipv6_method = CONNMAN_IPCONFIG_METHOD_FIXED;
 
-	context->ipv6_address =
-		connman_ipaddress_alloc(CONNMAN_IPCONFIG_TYPE_IPV6);
-	if (!context->ipv6_address)
-		goto out;
+	/*Not sure if ofono can return just e.g. gateway?*/
+	if (address) {
 
-	context->index = index;
-	connman_ipaddress_set_ipv6(context->ipv6_address, address,
-				prefix_length, gateway);
+		context->ipv6_address =
+			connman_ipaddress_alloc(CONNMAN_IPCONFIG_TYPE_IPV6);
+		if (!context->ipv6_address)
+			goto out;
 
-	g_free(context->ipv6_nameservers);
-	context->ipv6_nameservers = nameservers;
+		context->index = index;
+		connman_ipaddress_set_ipv6(context->ipv6_address, address,
+					prefix_length, gateway);
 
+		g_free(context->ipv6_nameservers);
+		context->ipv6_nameservers = nameservers;
+
+	} else {
+		context->ipv6_address = address;
+		g_free(context->ipv6_nameservers);
+	}
 out:
 	if (context->ipv6_nameservers != nameservers)
 		g_free(nameservers);
