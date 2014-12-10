@@ -2465,7 +2465,11 @@ static int server_create_socket(struct server_data *data)
 
 	DBG("sk %d", sk);
 
-	interface = connman_inet_ifname(data->index);
+	if (data->server_addr->sa_family == AF_INET6)
+		interface = connman_inet6_ifname(data->index);
+	else
+		interface = connman_inet_ifname(data->index);
+
 	if (interface) {
 		if (setsockopt(sk, SOL_SOCKET, SO_BINDTODEVICE,
 					interface,
