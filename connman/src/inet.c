@@ -215,6 +215,31 @@ int connman_inet_ifindex(const char *name)
 	return ifr.ifr_ifindex;
 }
 
+int connman_inet6_ifindex(const char *name)
+{
+	struct ifreq ifr;
+	int sk, err;
+
+	if (!name)
+		return -1;
+
+	sk = socket(PF_INET6, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+	if (sk < 0)
+		return -1;
+
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, name, sizeof(ifr.ifr_name) - 1);
+
+	err = ioctl(sk, SIOCGIFINDEX, &ifr);
+
+	close(sk);
+
+	if (err < 0)
+		return -1;
+
+	return ifr.ifr_ifindex;
+}
+
 char *connman_inet_ifname(int index)
 {
 	struct ifreq ifr;
@@ -224,6 +249,35 @@ char *connman_inet_ifname(int index)
 		return NULL;
 
 	sk = socket(PF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+	if (sk < 0)
+		return NULL;
+
+	memset(&ifr, 0, sizeof(ifr));
+	ifr.ifr_ifindex = index;
+
+	err = ioctl(sk, SIOCGIFNAME, &ifr);
+	if (err < 0)
+		err = -errno;
+
+	close(sk);
+
+	if (err < 0) {
+		connman_error("%s: %s", __func__, strerror(-err));
+		return NULL;
+	}
+
+	return g_strdup(ifr.ifr_name);
+}
+
+char *connman_inet6_ifname(int index)
+{
+	struct ifreq ifr;
+	int sk, err;
+
+	if (index < 0)
+		return NULL;
+
+	sk = socket(PF_INET6, SOCK_DGRAM | SOCK_CLOEXEC, 0);
 	if (sk < 0)
 		return NULL;
 
