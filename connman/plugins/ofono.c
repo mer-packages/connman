@@ -887,7 +887,7 @@ static void extract_ipv4_settings(DBusMessageIter *array,
 		g_free(context->ipv4_nameservers);
 		context->ipv4_nameservers = nameservers;
 	} else {
-		context->ipv4_address = address;
+		context->ipv4_address = NULL;
 		g_free(context->ipv4_nameservers);
 	}
 
@@ -983,7 +983,7 @@ static void extract_ipv6_settings(DBusMessageIter *array,
 		context->ipv6_nameservers = nameservers;
 
 	} else {
-		context->ipv6_address = address;
+		context->ipv6_address = NULL;
 		g_free(context->ipv6_nameservers);
 	}
 out:
