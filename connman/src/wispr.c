@@ -724,6 +724,8 @@ static bool wispr_portal_web_result(GWebResult *result, gpointer user_data)
 		break;
 	case 204:
 		portal_manage_status(result, wp_context);
+		// Cancel browser requests if useragent has not returned anything
+		connman_agent_cancel(wp_context->service);
 		return false;
 	case 302:
 	DBG("tls %d, Location header %d",(!g_web_supports_tls() ), (!g_web_result_get_header(result, "Location",
