@@ -295,24 +295,36 @@ static void set_connected(struct modem_data *modem)
 			connman_network_set_ipaddress(modem->network,
 						modem->context->ipv4_address);
 			setip = true;
+		} else {
+			connman_error("Invalid ipv4-address");
+			return;
 		}
 	} else {
-		connman_network_set_ipv4_method(modem->network, CONNMAN_IPCONFIG_METHOD_OFF);
+		connman_service_create_ip4config(service, index);
+		connman_network_set_ipv4_method(modem->network, CONNMAN_IPCONFIG_METHOD_UNKNOWN);
 	}
 
 	method = modem->context->ipv6_method;
-	if (method == CONNMAN_IPCONFIG_METHOD_FIXED) {
+	if (method == CONNMAN_IPCONFIG_METHOD_AUTO)	{
+		connman_service_create_ip6config(service, index);
+		connman_network_set_ipv6_method(modem->network, method);
+
+		setip = true;
+	} else if (method == CONNMAN_IPCONFIG_METHOD_FIXED) {
 		if (modem->context->ipv6_address) {
 			connman_service_create_ip6config(service, index);
 			connman_network_set_ipv6_method(modem->network, method);
 			connman_network_set_ipaddress(modem->network,
 						modem->context->ipv6_address);
 			setip = true;
+		} else {
+			connman_error("Invalid ipv6-address");
+			return;
 		}
 	} else {
-		connman_network_set_ipv6_method(modem->network, CONNMAN_IPCONFIG_METHOD_OFF);
+		connman_service_create_ip6config(service, index);
+		connman_network_set_ipv6_method(modem->network, CONNMAN_IPCONFIG_METHOD_UNKNOWN);
 	}
-
 
 	/* Set the nameservers */
 	if (modem->context->ipv4_nameservers &&
@@ -803,6 +815,8 @@ static void extract_ipv4_settings(DBusMessageIter *array,
 
 	connman_ipaddress_free(context->ipv4_address);
 	context->ipv4_address = NULL;
+	g_free(context->ipv4_nameservers);
+	context->ipv4_nameservers = NULL;
 	context->index = -1;
 
 	if (dbus_message_iter_get_arg_type(array) != DBUS_TYPE_ARRAY)
@@ -868,9 +882,9 @@ static void extract_ipv4_settings(DBusMessageIter *array,
 	if (index < 0)
 		goto out;
 
-	if (address) {
+	context->index = index;
 
-		context->index = index;
+	if (address) {
 
 		if (context->ipv4_method != CONNMAN_IPCONFIG_METHOD_FIXED)
 			goto out;
@@ -886,9 +900,6 @@ static void extract_ipv4_settings(DBusMessageIter *array,
 
 		g_free(context->ipv4_nameservers);
 		context->ipv4_nameservers = nameservers;
-	} else {
-		context->ipv4_address = NULL;
-		g_free(context->ipv4_nameservers);
 	}
 
 out:
@@ -912,6 +923,9 @@ static void extract_ipv6_settings(DBusMessageIter *array,
 
 	connman_ipaddress_free(context->ipv6_address);
 	context->ipv6_address = NULL;
+	g_free(context->ipv6_nameservers);
+	context->ipv6_nameservers = NULL;
+	context->index = -1;
 
 	if (dbus_message_iter_get_arg_type(array) != DBUS_TYPE_ARRAY)
 		return;
@@ -982,8 +996,8 @@ static void extract_ipv6_settings(DBusMessageIter *array,
 		context->ipv6_nameservers = nameservers;
 
 	} else {
-		context->ipv6_address = NULL;
-		g_free(context->ipv6_nameservers);
+		context->index = index;
+		context->ipv6_method = CONNMAN_IPCONFIG_METHOD_AUTO;
 	}
 out:
 	if (context->ipv6_nameservers != nameservers)
@@ -1278,6 +1292,11 @@ static gboolean context_changed(DBusConnection *conn,
 		DBG("%s IPv6.Settings", modem->path);
 
 		extract_ipv6_settings(&value, modem->context);
+	} else if (g_str_equal(key, "Protocol")) {
+		DBG("%s Protocol", modem->path);
+
+		modem->context->ipv4_method = CONNMAN_IPCONFIG_METHOD_UNKNOWN;
+		modem->context->ipv6_method = CONNMAN_IPCONFIG_METHOD_UNKNOWN;
 	} else if (g_str_equal(key, "Active")) {
 		dbus_bool_t active;
 
