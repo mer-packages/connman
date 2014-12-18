@@ -36,6 +36,9 @@ extern "C" {
 int connman_inet_ifindex(const char *name);
 char *connman_inet_ifname(int index);
 
+int connman_inet6_ifindex(const char *name);
+char *connman_inet6_ifname(int index);
+
 short int connman_inet_ifflags(int index);
 
 int connman_inet_ifup(int index);
