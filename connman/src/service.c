@@ -6467,6 +6467,7 @@ int __connman_service_disconnect(struct connman_service *service)
 	int err;
 
 	DBG("service %p", service);
+ 	connman_service_ref(service);
 
 	service->connect_reason = CONNMAN_SERVICE_CONNECT_REASON_NONE;
 	service->proxy = CONNMAN_SERVICE_PROXY_METHOD_UNKNOWN;
@@ -6482,10 +6483,10 @@ int __connman_service_disconnect(struct connman_service *service)
 					service->provider)
 		err = connman_provider_disconnect(service->provider);
 	else
-		return -EOPNOTSUPP;
+		err = -EOPNOTSUPP;
 
 	if (err < 0 && err != -EINPROGRESS)
-		return err;
+		goto exit;
 
 	__connman_6to4_remove(service->ipconfig_ipv4);
 
@@ -6505,6 +6506,8 @@ int __connman_service_disconnect(struct connman_service *service)
 	__connman_ipconfig_disable(service->ipconfig_ipv4);
 	__connman_ipconfig_disable(service->ipconfig_ipv6);
 
+exit:
+ 	connman_service_unref(service);
 	return err;
 }
 
