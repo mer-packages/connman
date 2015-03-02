@@ -609,6 +609,9 @@ static int context_submit_next_active_request(struct modem_data *modem)
 				"Active", DBUS_TYPE_BOOLEAN,
 				&active,
 				context_set_active_reply);
+
+		if (!active && err == -EINPROGRESS)
+			return 0;
 	}
 
 	return err;
