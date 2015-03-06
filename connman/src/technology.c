@@ -790,6 +790,7 @@ static int technology_disable(struct connman_technology *technology)
 	if (technology->tethering)
 		set_tethering(technology, false);
 
+	connman_service_disconnect_by_type(technology->type);
 	err = technology_affect_devices(technology, false);
 
 	if (technology->rfkill_driven)

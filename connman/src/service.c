@@ -3799,6 +3799,18 @@ static bool is_ignore(struct connman_service *service)
 	return false;
 }
 
+void connman_service_disconnect_by_type(enum connman_service_type type)
+{
+	GList *list;
+
+	for (list = service_list; list; list = list->next) {
+		struct connman_service *service = list->data;
+
+		if (service->type == type)
+			__connman_service_disconnect(service);
+	}
+}
+
 static void disconnect_on_last_session(enum connman_service_type type)
 {
 	GList *list;
